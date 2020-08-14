@@ -1,8 +1,9 @@
 package Database;
 
-import Files.IndexedOutputFile;
-import Files.StandardIndexedOutputFile;
-import Files.ZippedIndexedOutputFile;
+import Compression.IntCompressor;
+import IndexedFiles.IndexedOutputFile;
+import IndexedFiles.StandardIndexedOutputFile;
+import IndexedFiles.ZippedIndexedOutputFile;
 import KmerFiles.ReadDBFileCreator;
 import KmerFiles.RefDBFileCreator;
 import OtherFiles.KmersFromFile;
@@ -59,21 +60,22 @@ public class MakeDatabase
         IndexedOutputFile<Integer> out;
         if (commands.hasOption('z'))
         {
-            out = new ZippedIndexedOutputFile<>(new File(a.get(1)), new File(a.get(2)), z);
+            out = new ZippedIndexedOutputFile<>(new File(a.get(1)), new IntCompressor(), commands.hasOption('h'), z);
         }
         else
         {
-            out = new StandardIndexedOutputFile<>(new File(a.get(1)), new File(a.get(2)));
+//            out = new StandardIndexedOutputFile<>(new File(a.get(1)), new File(a.get(2)));
+            out = new StandardIndexedOutputFile<>(new File(a.get(1)), new IntCompressor(), commands.hasOption('h'));
         }
 
         if (commands.hasOption('r'))
         {
-            RefDBFileCreator dbc = new RefDBFileCreator(new File(a.get(1) + ".tmp"),new File(a.get(2) + ".tmp"),l,k,c);
+            RefDBFileCreator dbc = new RefDBFileCreator(new File(a.get(1) + ".tmp"),l,k,c);
 
-            KmersFromFile<Integer> kf = KmersFromFile.getFQtoRefDBInstance(k, j);
+            KmersFromFile<Integer> kf = KmersFromFile.getFQtoRefDBInstance(j, k);
 
             BufferedReader in = ZipOrNot.getBufferedReader(new File(a.get(0)));
-            kf.streamFromFile(in).forEach(dbc);
+            dbc.addKmers(kf.streamFromFile(in));
 
             dbc.create(out, !commands.hasOption('h'));
 
@@ -81,17 +83,17 @@ public class MakeDatabase
         }
         if (commands.hasOption('d'))
         {
-            ReadDBFileCreator dbc = new ReadDBFileCreator(new File(a.get(1) + ".tmp"),new File(a.get(2) + ".tmp"),l,k,c);
+            ReadDBFileCreator dbc = new ReadDBFileCreator(new File(a.get(1) + ".tmp"),l,k,c);
 
             PrintWriter outReadMap = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(
                     new FileOutputStream(new File(commands.getOptionValue('m')))))));
 
             ReadIDMapping map = new ReadIDMapping(outReadMap);
 
-            KmersFromFile<ReadPos> kf = KmersFromFile.getFAtoReadDBInstance(k, j, map);
+            KmersFromFile<ReadPos> kf = KmersFromFile.getFAtoReadDBInstance(j, k, map);
 
             BufferedReader in = ZipOrNot.getBufferedReader(new File(a.get(0)));
-            kf.streamFromFile(in).forEach(dbc);
+            dbc.addKmers(kf.streamFromFile(in));
 
             dbc.create(out, !commands.hasOption('h'));
 

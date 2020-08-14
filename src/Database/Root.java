@@ -1,21 +1,25 @@
 package Database;
 
+import DataTypes.DataType;
 import Exceptions.InvalidBaseException;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 public class Root<D> implements Iterable<KmerWithData<D>>
 {
-    public Root(int kmerLength, int shortest, BiFunction<D,D,D> mergeDataFunction)
+//    public Root(int kmerLength, int shortest, BiFunction<D,D,D> mergeDataFunction)
+    public Root(int kmerLength, int shortest, DataType<?,D> dataType)
     {
         size = 0;
         root = null;
         this.kmerLength = kmerLength;
         this.shortest = shortest;
-        merge = mergeDataFunction;
+//        merge = mergeDataFunction;
+        merge = dataType.getMerger();
     }
 
 //    public void sizeInfo()
@@ -44,7 +48,8 @@ public class Root<D> implements Iterable<KmerWithData<D>>
                     s += n.seq.length;
                     if (s >= shortest)
                     {
-                        n.data = merge.apply(n.data, kmer.getData());
+                        //n.data = merge.apply(n.data, kmer.getData());
+                        merge.accept(n.data, kmer.getData());
                     }
                     if (s == kmer.getKmer().length())
                     {
@@ -96,7 +101,8 @@ public class Root<D> implements Iterable<KmerWithData<D>>
                     }
                     else
                     {
-                        n.data = merge.apply(n.data,kmer.getData());
+                        //n.data = merge.apply(n.data,kmer.getData());
+                        merge.accept(n.data,kmer.getData());
                     }
 
                     s = kmer.getKmer().length();
@@ -120,7 +126,7 @@ public class Root<D> implements Iterable<KmerWithData<D>>
         return new RootIterator<>(root);
     }
 
-     public <S> ClosestInfo<S,D> closestKmers2(KmerWithData<S> searchKmer, int maxdiff, boolean just)
+     public <S> ClosestInfo<S,D> closestKmers(KmerWithData<S> searchKmer, int maxdiff, boolean just)
     {
         Map<KmerWithData<D>,Integer> best = new HashMap<>();
         int testDist = maxdiff;
@@ -161,7 +167,7 @@ public class Root<D> implements Iterable<KmerWithData<D>>
                         best = new HashMap<>();
                     }
                     bestDist = Math.min(curdist,bestDist);
-                    best.put(new KmerWithData(Kmer.createUnchecked(newseq), cn.n.data),curdist);
+                    best.put(new KmerWithData<D>(Kmer.createUnchecked(newseq), cn.n.data),curdist);
 //                    System.out.println(best + "\t" + testDist);
                 }
                 else
@@ -294,7 +300,8 @@ public class Root<D> implements Iterable<KmerWithData<D>>
 
     private int size;
     private Node<D> root;
-    private BiFunction<D,D,D> merge;
+//    private BiFunction<D,D,D> merge;
+    private BiConsumer<D,D> merge;
     private int kmerLength;
     private int shortest;
 }

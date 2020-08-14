@@ -1,13 +1,19 @@
+import Compression.IntCompressor;
 import CountMaps.CountMap;
 import CountMaps.TreeCountMap;
-import Files.ZippedIndexedInputFile;
-import KmerFiles.CompressedKmerFile;
+import Database.DB;
+import IndexedFiles.ZippedIndexedInputFile;
 import KmerFiles.CountCompressor;
+import KmerFiles.KmerFile;
 import Kmers.*;
+import Reads.ReadPos;
+import Reads.ReadPosSetCompressor;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class Testing
 {
@@ -145,74 +151,96 @@ public class Testing
 //         * Exact match code
 //         *****************/
 //
-//        ZippedIndexedInputFile rf = new ZippedIndexedInputFile(new File("reads/test.db.gz"),
-//                new File("reads/test.ind.gz"));
+//        ZippedIndexedInputFile rf = new ZippedIndexedInputFile(new File("reads/test.db.gz"));
 //
 //        ReadPosSetCompressor ecompressor = new ReadPosSetCompressor();
 //        CompressedKmerFile<Set<ReadPos>> crf = new CompressedKmerFile<>(rf, ecompressor);
 //
-//        ZippedIndexedInputFile df = new ZippedIndexedInputFile(new File("medium/norway_cr.db.gz"),
-//                new File("medium/norway_cr.ind.gz"));
+//        ZippedIndexedInputFile df = new ZippedIndexedInputFile(new File("medium/norway_cr.db.gz"));
 //        CountCompressor dcompressor = new CountCompressor();
 //        CompressedKmerFile<TreeCountMap<Integer>> cdf = new CompressedKmerFile<>(df, dcompressor);
-//
-//
-////        long c = StreamUtils.matchTwoStreams(crf.allKmers(), cdf.allKmers(), (kwd1, kwd2) -> kwd1.toString() + "\t" + kwd2.toString(),
-////                (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer()))
-////                .count();
-//
+
+
+//        long c = StreamUtils.matchTwoStreams(crf.allKmers(), cdf.allKmers(), (kwd1, kwd2) -> kwd1.toString() + "\t" + kwd2.toString(),
+//                (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer()))
+//                .count();
+
 //        for (int i = 0; i < 100; i++)
 //        {
 //            long c =
-//                    StreamUtils.matchTwoStreams(crf.kmers(0).filter(k -> k.getKmer().length() == 32), cdf.kmers(0), (kwd1, kwd2) -> kwd1.toString() + "\t" + kwd2.toString(),
+//                    StreamUtils.matchTwoStreams(crf.kmers(0).stream().filter(k -> k.getKmer().length() == 32), cdf.kmers(0).stream(), (kwd1, kwd2) -> kwd1.toString() + "\t" + kwd2.toString(),
 //                            (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer()))
 //                            .count();
-//            //                .forEach(ci -> System.out.println(ci));
+            //                .forEach(ci -> System.out.println(ci));
+
+//        Stream<KmerWithData<Set<ReadPos>>> rstream = IntStream.range(0,4096).mapToObj(i ->
+//                crf.restrictedKmers(i,32,32,(kwd1,kwd2) -> {kwd1.getData().addAll(kwd2.getData()); return kwd1;})
+//                        .stream()).flatMap(s -> s);
+//        Stream<KmerWithData<TreeCountMap<Integer>>> dstream = IntStream.range(0,4096).mapToObj(i ->
+//                cdf.restrictedKmers(i,32,32,(kwd1,kwd2) -> {kwd1.getData().addAll(kwd2.getData());return kwd2;})
+//                        .stream()).flatMap(s -> s);
 //
-////            System.out.println(c);
+//        long c = StreamUtils.matchTwoStreams(rstream,dstream,
+//                        (kwd1, kwd2) -> kwd1.toString() + "\t" + kwd2.toString(),
+//                        (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer()))
+//                .count();
+//
+//            System.out.println(c);
+
 //        }
 //
 //
-//        /********************
-//         * Inexact testing
-//         */
-//
-//        ZippedIndexedInputFile rf2 = new ZippedIndexedInputFile(new File("reads/test.db.gz"),
-//                new File("reads/test.ind.gz"));
+        /********************
+         * Inexact testing
+         */
+
+//        ZippedIndexedInputFile<Integer> rf2 = new ZippedIndexedInputFile<>(new File("reads/test.db.gz"), new IntCompressor());
 //
 //        ReadPosSetCompressor ecompressor2 = new ReadPosSetCompressor();
-//        CompressedKmerFile<Set<ReadPos>> crf2 = new CompressedKmerFile<>(rf2, ecompressor2);
+//        KmerFile<Set<ReadPos>> crf2 = new KmerFile<>(rf2, ecompressor2);
 //
-//        ZippedIndexedInputFile df2 = new ZippedIndexedInputFile(new File("medium/norway_cr.db.gz"),
-//                new File("medium/norway_cr.ind.gz"));
+//        ZippedIndexedInputFile<Integer> df2 = new ZippedIndexedInputFile<>(new File("medium/norway_cr.db.gz"), new IntCompressor());
 //        CountCompressor dcompressor2 = new CountCompressor();
-//        CompressedKmerFile<TreeCountMap<Integer>> cdf2 = new CompressedKmerFile<>(df2, dcompressor2);
+//        KmerFile<TreeCountMap<Integer>> cdf2 = new KmerFile<>(df2, dcompressor2);
 //        List<KmerFile<TreeCountMap<Integer>>> files = new ArrayList<>(1);
 //        files.add(cdf2);
-//        DB<TreeCountMap<Integer>> db = new DB<>(files, 6, (d1, d2) -> {d1.addAll(d2); return d1;});
+//        DB<TreeCountMap<Integer>> db = new DB<>(files, (d1, d2) -> {d1.addAll(d2); return d1;});
 //
-//        System.out.println();
 //        System.out.println(sdf.format(new Date()));
-//        System.out.println();
-//
-//        for (int i = 0; i < 100; i++)
-//        {
-//            long c2 =
-//                    db.getNearestKmers2(crf.kmers(0).filter(k -> k.getKmer().length() == 32), 0, false).filter(ci -> !ci.getMatchedKmers().isEmpty())
-//                            .count();
+////
+//////        for (int i = 0; i < 100; i++)
+//////        {
+////            long c2 =
+////                    db.getNearestKmers(crf.kmers(0).stream().filter(k -> k.getKmer().length() == 32), 0, false).filter(ci -> !ci.getMatchedKmers().isEmpty())
+////                            .count();
 //            //                .forEach(ci -> System.out.println(ci));
-////            System.out.println(c2);
-//        }
+//
+//        KmerWithDataStreamWrapper<Set<ReadPos>> rstream2 = new KmerWithDataStreamWrapper<>(
+//                IntStream.range(0,4).mapToObj(i ->
+//                crf2.restrictedKmers(i,32,32,(kwd1,kwd2) -> {kwd1.getData().addAll(kwd2.getData()); return kwd1;})).flatMap(s -> s.stream()),
+//                32,32);
+//
+//        long c2 = db.getNearestKmers(rstream2,0,true).filter(ci -> !ci.getMatchedKmers().isEmpty()).count();
+//
+//            System.out.println(c2);
 
-//        List<Kmer> l = crf.kmers(0).map(kwd -> kwd.getKmer()).collect(Collectors.toList());
-//        db.getNearestKmers(l,0,false).entrySet().stream().forEach(e -> System.out.println(e.getKey() + "\t" + e.getValue()));
+        System.out.println(sdf.format(new Date()));
+
+////        }
+
+        /************
+         * Not sure!
+         */
+
+//        List<KmerWithData<Set<ReadPos>>> l = crf.kmers(0).stream().collect(Collectors.toList());
+//        db.getNearestKmers(l,0,false).forEach(ci -> System.out.println(ci));
 //        db.getNearestKmers(l,0,false);
-
+//
 //        Root<TreeCountMap<Integer>> r = new Root<>(32,24,(d1, d2) -> {d1.addAll(d2); return d1;});
-//        cdf.kmers(0).forEach(k -> r.addKmer(k));
-//        l.stream().map(k -> r.closestKmers(k,0,false)).filter(ci -> !ci.getKmers().isEmpty()).forEach(ci -> System.out.println(ci));
-
-//        crf.kmers(0).map(kwd -> r.closestKmers2(kwd,0,false)).filter(ci -> !ci.getMatchedKmers().isEmpty()).forEach(ci -> System.out.println(ci));
+//        cdf.kmers(0).stream().forEach(k -> r.addKmer(k));
+//        l.stream().map(k -> r.closestKmers(k,0,false)).filter(ci -> !ci.getMatchedKmers().isEmpty()).forEach(ci -> System.out.println(ci));
+//
+//        crf.kmers(0).stream().map(kwd -> r.closestKmers(kwd,0,false)).filter(ci -> !ci.getMatchedKmers().isEmpty()).forEach(ci -> System.out.println(ci));
 
 
 
@@ -221,16 +249,29 @@ public class Testing
          */
 
 
-        ZippedIndexedInputFile f = new ZippedIndexedInputFile(new File("medium/norway_cr.db.gz"),
-                new File("medium/norway_cr.ind.gz"));
-        CountCompressor compressor = new CountCompressor();
-        CompressedKmerFile<TreeCountMap<Integer>> dbf = new CompressedKmerFile<>(f, compressor);
+//        ZippedIndexedInputFile f = new ZippedIndexedInputFile(new File("medium/norway_cr.db.gz"),
+//                new File("medium/norway_cr.ind.gz"));
+//        CountCompressor compressor = new CountCompressor();
+//        CompressedKmerFile<TreeCountMap<Integer>> dbf = new CompressedKmerFile<>(f, compressor);
+//
+//        dbf.allRestrictedKmers(28,32,(kwd1,kwd2) -> {kwd1.getData().addAll(kwd2.getData()); return kwd1;}).stream().limit(200).forEach(kwd -> System.out.println(kwd));
 
-        dbf.allRestrictedKmers(28,32,(kwd1,kwd2) -> {kwd1.getData().addAll(kwd2.getData()); return kwd1;}).limit(200).forEach(kwd -> System.out.println(kwd));
+
+        /****************
+         * CLI bits
+         */
+
+//        Options options = new Options();
+//        options.addOption(Option.builder("d").hasArgs().build());
+//
+//        String[] test = {"-d", "file1a", "-d", "file1b"};
+//        CommandLineParser parser = new DefaultParser();
+//        CommandLine line = parser.parse(options,test);
+//
+//        String[] v = line.getOptionValues('d');
+//        System.out.println(Arrays.toString(v));
 
 
-
-        System.out.println(sdf.format(new Date()));
     }
 
     private static void printkwd(KmerWithData<CountMap<Integer>> kwd)

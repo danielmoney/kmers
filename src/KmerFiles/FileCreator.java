@@ -1,9 +1,11 @@
 package KmerFiles;
 
 import Compression.Compressor;
+import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
 import Concurrent.OrderedIndexOutput;
-import Files.*;
+import DataTypes.DataType;
+import IndexedFiles.*;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
 import Kmers.KmerWithDataStreamWrapper;
@@ -21,14 +23,14 @@ import java.util.stream.Collector;
 
 public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoCloseable
 {
-    public FileCreator(File dbFileTemp, File indexFileTemp,
+    public FileCreator(File dbFileTemp,
                        int keyLength, int maxKmerLength, int cacheSize,
-                       Compressor<I> inputCompressor, Compressor<O> outputCompressor,
-                       Collector<I,?,O> collector) throws IOException
+//                       Compressor<I> inputCompressor, Compressor<O> outputCompressor,
+//                       Collector<I,?,O> collector) throws IOException
+                        DataType<I,O> dataType) throws IOException
     {
         this.dbFileTemp = dbFileTemp;
-        this.indexFileTemp = indexFileTemp;
-//        dbFileTemp.deleteOnExit();
+        dbFileTemp.deleteOnExit();
 //        indexFileTemp.deleteOnExit();
 
         maxkey = 1;
@@ -37,17 +39,19 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
             maxkey *= 4;
         }
 
-        fileCache = new IndexedOutputFileCache(maxkey,cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,indexFileTemp,5));
+        fileCache = new IndexedOutputFileCache(maxkey,cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
 
         this.keyLength = keyLength;
 
-        this.maxKmerLength = maxKmerLength;
+//        this.maxKmerLength = maxKmerLength;
+//
+//        this.inputCompressor = inputCompressor;
+//
+//        this.outputCompressor = outputCompressor;
+//
+//        this.collector = collector;
 
-        this.inputCompressor = inputCompressor;
-
-        this.outputCompressor = outputCompressor;
-
-        this.collector = collector;
+        this.dataType = dataType;
 
         this.minK = -1;
         this.maxK = -1;
@@ -83,9 +87,11 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
         kmerStream.stream().forEach(kwd -> {
                         try
                         {
-                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(inputCompressor));
+                            //fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(inputCompressor));
+                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
                             KmerWithData<I> rc = new KmerWithData<>(kwd.getKmer().getRC(), kwd.getData());
-                            fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(inputCompressor));
+                            //fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(inputCompressor));
+                            fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
                         }
                         catch (IOException ex)
                         {
@@ -95,19 +101,90 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
                 );
     }
 
-    public void create(IndexedOutputFile<Integer> out, boolean compress) throws Exception
+//    public void create(IndexedOutputFile2<Integer> out, boolean compress) throws Exception
+//    {
+//        fileCache.close();
+//
+//        IndexedInputFile2 tempIn = new ZippedIndexedInputFile2(dbFileTemp);
+//
+//        LimitedQueueExecutor exec = new LimitedQueueExecutor(7,7);
+//
+//        OrderedIndexOutput2 orderedout = new OrderedIndexOutput2(out,maxkey);
+//
+//        byte[] meta;
+//        if (compress)
+//        {
+//            meta = new byte[3];
+//            meta[0] = (byte) minK;
+//            meta[1] = (byte) maxK;
+//            meta[2] = (byte) keyLength;
+//        }
+//        else
+//        {
+//            StringBuffer sb = new StringBuffer();
+//            sb.append(minK);
+//            sb.append("\n");
+//            sb.append(maxK);
+//            sb.append("\n");
+//            sb.append(keyLength);
+//            sb.append("\n");
+//            meta = sb.toString().getBytes();
+//        }
+//        out.write(meta,-1);
+//
+//        for (int i = 0; i < maxkey; i++)
+//        {
+//            exec.execute(new MakeAndWriteKey(tempIn,i,orderedout,maxKmerLength, inputCompressor, outputCompressor, collector, compress));
+//        }
+//
+//        exec.shutdown();
+//
+//        out.close();
+//        tempIn.close();
+//    }
+
+    public void create(IndexedOutputFile<Integer> out, boolean hr) throws Exception
     {
         fileCache.close();
 
-        IndexedInputFile tempIn = new ZippedIndexedInputFile(dbFileTemp,indexFileTemp);
+        IndexedInputFile<Integer> tempIn = new ZippedIndexedInputFile<>(dbFileTemp, new IntCompressor());
 
         LimitedQueueExecutor exec = new LimitedQueueExecutor(7,7);
 
         OrderedIndexOutput orderedout = new OrderedIndexOutput(out,maxkey);
 
+        byte[] meta;
+        if (hr)
+        {
+            ByteBuffer bb = ByteBuffer.allocate(7);
+            bb.put((byte) minK);
+            bb.put((byte) maxK);
+            bb.put((byte) keyLength);
+//            bb.putInt(outputCompressor.getID());
+            bb.putInt(dataType.getCollectionCompressor().getID());
+            meta = bb.array();
+        }
+        else
+        {
+            StringBuffer sb = new StringBuffer();
+            sb.append(minK);
+            sb.append("\n");
+            sb.append(maxK);
+            sb.append("\n");
+            sb.append(keyLength);
+            sb.append("\n");
+            //sb.append(outputCompressor.getID());
+            sb.append(dataType.getCollectionCompressor().getID());
+            sb.append("\n");
+            meta = sb.toString().getBytes();
+        }
+        out.write(meta,-1);
+
         for (int i = 0; i < maxkey; i++)
         {
-            exec.execute(new MakeAndWriteKey(tempIn,i,orderedout,maxKmerLength, inputCompressor, outputCompressor, collector, compress));
+            //exec.execute(new MakeAndWriteKey<>(tempIn,i,orderedout,maxKmerLength, inputCompressor, outputCompressor, collector, hr));
+            exec.execute(new MakeAndWriteKey<>(tempIn,i,orderedout, maxKmerLength, dataType.getDataCompressor(),
+                    dataType.getCollectionCompressor(), dataType.getCollector(), hr));
         }
 
         exec.shutdown();
@@ -151,7 +228,7 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
     private static class MakeAndWriteKey<I,O,A> implements Runnable
     {
         private MakeAndWriteKey(IndexedInputFile in, int index, OrderedIndexOutput out, int maxKmerLength, Compressor<I> inputCompressor,
-                                Compressor<O> outputCompressor, Collector<I,A,O> collector, boolean compress)
+                                Compressor<O> outputCompressor, Collector<I, A, O> collector, boolean hr)
         {
             this.in = in;
             this.index = index;
@@ -160,12 +237,12 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
             this.inputCompressor = inputCompressor;
             this.outputCompressor = outputCompressor;
             this.collector = collector;
-            this.compress = compress;
+            this.compress = hr;
         }
 
         public void run()
         {
-            TreeMap<Kmer,A> kmers = new TreeMap<>();
+            TreeMap<Kmer, A> kmers = new TreeMap<>();
             byte[] data;
 
             try
@@ -178,10 +255,10 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
                 {
                     byte len = indata.get();
                     int l = (len - 1) / 4 + 1;
-                    byte[] kb = new byte[l+1];
+                    byte[] kb = new byte[l + 1];
                     kb[0] = len;
 
-                    indata.get(kb,1,l);
+                    indata.get(kb, 1, l);
 
                     //Kmer k = Kmer.createFromCompressed(Arrays.copyOfRange(indata, cr, cr + l + 1));
                     Kmer k = Kmer.createFromCompressed(kb);
@@ -196,10 +273,10 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
                     {
 //                        cm = new TreeCountMap<>();
                         cm = collector.supplier().get();
-                        kmers.put(k,cm);
+                        kmers.put(k, cm);
                     }
                     //cm.add(d);
-                    collector.accumulator().accept(cm,d);
+                    collector.accumulator().accept(cm, d);
                 }
 
                 if (kmers.isEmpty())
@@ -294,7 +371,8 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
             }
         }
 
-        private Collector<I,A,O> collector;
+
+        private Collector<I, A, O> collector;
 
         private IndexedInputFile in;
         private int index;
@@ -309,12 +387,13 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
     private int maxK;
 
     private File dbFileTemp;
-    private File indexFileTemp;
 
-    private Compressor<I> inputCompressor;
-    private Compressor<O> outputCompressor;
+//    private Compressor<I> inputCompressor;
+//    private Compressor<O> outputCompressor;
+//
+//    private Collector<I,?,O> collector;
 
-    private Collector<I,?,O> collector;
+    private DataType<I,O> dataType;
 
     private int maxKmerLength;
     private int keyLength;

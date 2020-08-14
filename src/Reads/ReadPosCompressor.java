@@ -42,5 +42,10 @@ public class ReadPosCompressor implements Compressor<ReadPos>
         String[] parts = s.split(":");
         return new ReadPos(Integer.valueOf(parts[0]), Short.valueOf(parts[1]));
     }
+
+    public int getID()
+    {
+        return 1025;
+    }
 }
 

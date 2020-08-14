@@ -88,4 +88,9 @@ public class CountCompressor implements Compressor<TreeCountMap<Integer>>
         return map.entrySet().stream().map(e2 -> e2.getKey() + ":" + e2.getValue())
                                 .collect(Collectors.joining(" "));
     }
+
+    public int getID()
+    {
+        return 1024;
+    }
 }

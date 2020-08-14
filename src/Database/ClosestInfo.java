@@ -3,9 +3,18 @@ package Database;
 import Kmers.KmerWithData;
 
 import java.util.Map;
+import java.util.TreeMap;
 
 public class ClosestInfo<S,M>
 {
+    public ClosestInfo(KmerWithData<S> searchKmerm, KmerWithData<M> matchedKmer)
+    {
+        this.searchKmer = searchKmer;
+        matchedKmers = new TreeMap<>();
+        matchedKmers.put(matchedKmer,0);
+        mindist = 0;
+    }
+
     public ClosestInfo(KmerWithData<S> searchKmer, Map<KmerWithData<M>,Integer> matchedKmers, int mindist)
     {
         this.searchKmer = searchKmer;
@@ -28,7 +37,7 @@ public class ClosestInfo<S,M>
         return mindist;
     }
 
-    public void merge(ClosestInfo oci)
+    public void merge(ClosestInfo<S,M> oci)
     {
         //Should probably throw an error if the search kmer is not the same
         //Should probably throw error if dists are not the same...

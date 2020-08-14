@@ -1,5 +1,6 @@
 package Kmers;
 
+import DataTypes.DataType;
 import Streams.StreamUtils;
 
 import java.util.Arrays;
@@ -57,13 +58,13 @@ public class KmerUtils
         return key;
     }
 
-    public static <D> Stream<KmerWithData<D>> restrictedStream(Stream<KmerWithData<D>> stream,
-                                                               int minLength, int maxLength, BinaryOperator<KmerWithData<D>> reducer)
+    public static <D> KmerWithDataStreamWrapper<D> restrictedStream(KmerWithDataStreamWrapper<D> stream,
+                                                               int minLength, int maxLength, DataType<?,D> dataType)
     {
-        return StreamUtils.groupAndReduceStream(
-                stream.filter(kwd -> kwd.getKmer().length() >= minLength).map(kwd -> kwd.limitTo(maxLength)),
+        return new KmerWithDataStreamWrapper<>(StreamUtils.groupAndReduceStream(
+                stream.stream().filter(kwd -> kwd.getKmer().length() >= minLength).map(kwd -> kwd.limitTo(maxLength)),
                 (kwd1,kwd2) -> kwd1.getKmer().equals(kwd2.getKmer()),
-                reducer
-        );
+                dataType.getKmerReducer()
+        ),minLength,maxLength);
     }
 }

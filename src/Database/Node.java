@@ -10,6 +10,6 @@ public class Node<D>
 
     private Node parent;
     protected byte[] seq;
-    protected Node[] children = new Node[4];
+    protected Node<D>[] children = new Node[4];
     protected D data;
 }

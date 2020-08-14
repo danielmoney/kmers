@@ -51,7 +51,7 @@ public class KmersFromFile<D>
 
     public class KmersFromFileSpliterator<D> implements Spliterator<KmerWithData<D>>
     {
-        public KmersFromFileSpliterator(BufferedReader input, BiFunction<String,Short,D> mapper, int maxK, int minK,
+        public KmersFromFileSpliterator(BufferedReader input, BiFunction<String,Short,D> mapper, int minK, int maxK,
                                         KmersFromFileStateChanger stateChanger) throws IOException
         {
             this.mapper = mapper;
@@ -64,6 +64,7 @@ public class KmersFromFile<D>
             id = new StringBuilder();
 
             ending = false;
+            endFile = false;
         }
 
         @Override
@@ -101,7 +102,12 @@ public class KmersFromFile<D>
                         int c = in.read();
                         if (c == -1)
                         {
-                            throw new EOFException();
+//                            throw new EOFException();
+                            ending = true;
+                            oldid = id.toString();
+                            curK = Math.min(pos-1,maxK - 1);
+                            endFile = true;
+                            break;
                         }
                         KmersFromFileStateChanger.KmersFromFileState newState = stateChanger.get(state, c);
 
@@ -171,9 +177,16 @@ public class KmersFromFile<D>
                         }
                     }
                 }
-                while (kwd == null);
-                consumer.accept(kwd);
-                return true;
+                while ((kwd == null) && (!endFile || (endFile || ending)));
+                if (kwd == null)
+                {
+                    return false;
+                }
+                else
+                {
+                    consumer.accept(kwd);
+                    return true;
+                }
             }
             catch (IOException ex)
             {
@@ -201,6 +214,7 @@ public class KmersFromFile<D>
         }
 
         private boolean ending;
+        private boolean endFile;
         private int curK;
         private String oldid;
 

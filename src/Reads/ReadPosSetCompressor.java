@@ -88,4 +88,9 @@ public class ReadPosSetCompressor implements Compressor<Set<ReadPos>>
         }
         return ret;
     }
+
+    public int getID()
+    {
+        return 1026;
+    }
 }
