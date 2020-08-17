@@ -1,8 +1,7 @@
-package KmerFiles;
+package Counts;
 
 import Compression.Compressor;
 import CountMaps.TreeCountMap;
-import Kmers.Kmer;
 
 import java.io.DataInput;
 import java.io.IOException;

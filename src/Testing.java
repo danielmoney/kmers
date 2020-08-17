@@ -1,19 +1,8 @@
-import Compression.IntCompressor;
 import CountMaps.CountMap;
-import CountMaps.TreeCountMap;
-import Database.DB;
-import IndexedFiles.ZippedIndexedInputFile;
-import KmerFiles.CountCompressor;
-import KmerFiles.KmerFile;
 import Kmers.*;
-import Reads.ReadPos;
-import Reads.ReadPosSetCompressor;
 
-import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class Testing
 {

@@ -1,7 +1,6 @@
 package Reads;
 
 import Compression.Compressor;
-import CountMaps.TreeCountMap;
 
 import java.io.DataInput;
 import java.io.IOException;

@@ -1,35 +1,33 @@
 package KmerFiles;
 
 import Compression.Compressor;
+import Compression.IntCompressor;
 import DataTypes.DataType;
-import Exceptions.InvalidBaseException;
 import IndexedFiles.IndexedInputFile;
+import IndexedFiles.StandardIndexedInputFile;
+import IndexedFiles.ZippedIndexedInputFile;
 import Kmers.Kmer;
 import Kmers.KmerUtils;
 import Kmers.KmerWithData;
-import Kmers.KmerWithDataStreamWrapper;
-import Streams.StreamUtils;
+import Kmers.KmerStream;
+import Zip.ZipOrNot;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Spliterator;
-import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import java.util.zip.DataFormatException;
 
 public class KmerFile<D>
 {
-//    public KmerFile(IndexedInputFile<Integer> file, Compressor<D> compressor)
-    public KmerFile(IndexedInputFile<Integer> file, DataType<?,D> dataType)
+    public KmerFile(File file, DataType<?,D> dataType) throws IOException
     {
-        this.file = file;
-//        this.compressor = compressor;
+        this.file = getIndexedInputFile(file);
         this.dataType = dataType;
         this.meta = getMetaData(file);
-//        if (meta.dataID != compressor.getID())
         if (meta.dataID != dataType.getCollectionCompressor().getID())
         {
             //throw an error
@@ -44,43 +42,40 @@ public class KmerFile<D>
         }
         else
         {
-//            return StreamSupport.stream(new CompressedKmerSpliterator<>(file.data(key), compressor), false);
             return StreamSupport.stream(new CompressedKmerSpliterator<>(file.data(key), dataType.getCollectionCompressor()), false);
         }
     }
 
-    public KmerWithDataStreamWrapper<D> kmers(int key)
+    public KmerStream<D> kmers(int key)
     {
-        return new KmerWithDataStreamWrapper<>(getKmers(key),meta.minLength,meta.maxLength);
+        return new KmerStream<>(getKmers(key),meta.minLength,meta.maxLength, meta.rc);
     }
 
-    public KmerWithDataStreamWrapper<D> kmers(int startKey, int endKey)
+    public KmerStream<D> kmers(int startKey, int endKey)
     {
-        return new KmerWithDataStreamWrapper<> (IntStream.range(startKey,endKey).filter(i -> file.hasIndex(i)).mapToObj(i ->
-                getKmers(i)).flatMap(s -> s), meta.minLength, meta.maxLength);
+        return new KmerStream<>(IntStream.range(startKey,endKey).filter(i -> file.hasIndex(i)).mapToObj(i ->
+                getKmers(i)).flatMap(s -> s), meta.minLength, meta.maxLength, meta.rc);
     }
 
-    public KmerWithDataStreamWrapper<D> allKmers()
+    public KmerStream<D> allKmers()
     {
         return kmers(0, file.maxIndex());
     }
 
 
 
-    public KmerWithDataStreamWrapper<D> restrictedKmers(int key, int minLength, int maxLength)
+    public KmerStream<D> restrictedKmers(int key, int minLength, int maxLength)
     {
         return KmerUtils.restrictedStream(kmers(key),minLength,maxLength,dataType);
     }
 
-    public KmerWithDataStreamWrapper<D> restrictedKmers(int minKey, int maxKey, int minLength, int maxLength)
+    public KmerStream<D> restrictedKmers(int minKey, int maxKey, int minLength, int maxLength)
     {
         return KmerUtils.restrictedStream(kmers(minKey, maxKey),minLength,maxLength,dataType);
     }
 
-    public KmerWithDataStreamWrapper<D> allRestrictedKmers(int minLength, int maxLength)
+    public KmerStream<D> allRestrictedKmers(int minLength, int maxLength)
     {
-//        return new KmerWithDataStreamWrapper<>(KmerUtils.restrictedStream(IntStream.range(0, file.maxIndex()).filter(i -> file.hasIndex(i)).mapToObj(i ->
-//                getKmers(i)).flatMap(s -> s), minLength,maxLength,reducer),minLength,maxLength);
         return KmerUtils.restrictedStream(allKmers(),minLength,maxLength,dataType);
     }
 
@@ -99,7 +94,12 @@ public class KmerFile<D>
         return meta.maxLength;
     }
 
-    public DataType getDataType()
+    public boolean getRC()
+    {
+        return meta.rc;
+    }
+
+    public DataType<?,D> getDataType()
     {
         return dataType;
     }
@@ -117,8 +117,6 @@ public class KmerFile<D>
                     {
                         String[] parts = l.split("\t");
                         Kmer kmer = Kmer.createUnchecked(prev[0], parts[0]);
-//                        D data = mapper.apply(parts[1]);
-//                        D data = compressor.fromString(parts[1]);
                         D data = dataType.getCollectionCompressor().fromString(parts[1]);
                         prev[0] = kmer;
                         return new KmerWithData<>(kmer, data);
@@ -132,24 +130,25 @@ public class KmerFile<D>
     }
 
     protected IndexedInputFile<Integer> file;
-//    private Compressor<D> compressor;
     private DataType<?,D> dataType;
     private MetaData meta;
 
     private static class MetaData
     {
-        public MetaData(int minLength, int maxLength, int keyLength, int dataID)
+        public MetaData(int minLength, int maxLength, int keyLength, int dataID, boolean rc)
         {
             this.minLength = minLength;
             this.maxLength = maxLength;
             this.keyLength = keyLength;
             this.dataID = dataID;
+            this.rc = rc;
         }
 
         public int minLength;
         public int maxLength;
         public int keyLength;
         public int dataID;
+        public boolean rc;
     }
 
     public class CompressedKmerSpliterator<D> implements Spliterator<KmerWithData<D>>
@@ -229,24 +228,37 @@ public class KmerFile<D>
         ByteBuffer bytes;
     }
 
-    private static MetaData getMetaData(IndexedInputFile file)
+    private static IndexedInputFile<Integer> getIndexedInputFile(File f) throws IOException
     {
+        if (ZipOrNot.isGZipped(f))
+        {
+            return new ZippedIndexedInputFile<>(f, new IntCompressor());
+        }
+        else
+        {
+            return new StandardIndexedInputFile<>(f, new IntCompressor());
+        }
+    }
+
+    private static <D> MetaData getMetaData(File f) throws IOException
+    {
+        IndexedInputFile<Integer> file = getIndexedInputFile(f);
         byte[] metadata = file.data(-1);
         if (file.isHumanReadable())
         {
             String meta = new String(file.data(-1));
             String[] parts = meta.split("\n");
             return new MetaData(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]),
-                    Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+                    Integer.parseInt(parts[2]), Integer.parseInt(parts[3]), parts[4].equals("1"));
         }
         else
         {
             ByteBuffer meta = ByteBuffer.wrap(file.data(-1));
-            return new MetaData(meta.get(), meta.get(), meta.get(), meta.getInt());
+            return new MetaData(meta.get(), meta.get(), meta.get(), meta.getInt(), meta.get() == (byte) 1);
         }
     }
 
-    public static int getDataID(IndexedInputFile<Integer> file)
+    public static int getDataID(File file) throws IOException
     {
         return getMetaData(file).dataID;
     }

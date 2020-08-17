@@ -3,15 +3,13 @@ package OtherFiles;
 import Exceptions.InvalidBaseException;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
-import Kmers.KmerWithDataStreamWrapper;
-import Reads.ReadIDMapping;
+import Kmers.KmerStream;
 import Reads.ReadPos;
 
 import java.io.*;
 import java.util.Spliterator;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class KmersFromFile<D>
@@ -25,12 +23,10 @@ public class KmersFromFile<D>
         this.mapper = mapper;
     }
 
-//    public Stream<KmerWithData<D>> streamFromFile(BufferedReader input) throws IOException
-    public KmerWithDataStreamWrapper<D> streamFromFile(BufferedReader input) throws IOException
+    public KmerStream<D> streamFromFile(BufferedReader input) throws IOException
     {
         KmersFromFileSpliterator<D>  spliterator = new KmersFromFileSpliterator<D>(input, mapper, minK, maxK, stateChanger);
-//        return StreamSupport.stream(spliterator,false);
-        return new KmerWithDataStreamWrapper<>(StreamSupport.stream(spliterator,false),minK,maxK);
+        return new KmerStream<>(StreamSupport.stream(spliterator,false),minK,maxK,false);
     }
 
     private KmersFromFileStateChanger stateChanger;
@@ -45,7 +41,7 @@ public class KmersFromFile<D>
 
     public static KmersFromFile<ReadPos> getFAtoReadDBInstance(int minK, int maxK, ReadIDMapping readMap)
     {
-        return new KmersFromFile<>(KmersFromFileStateChanger.getFQinstance(), minK, maxK, (s,i) -> new ReadPos(readMap.getIntID(s), i));
+        return new KmersFromFile<>(KmersFromFileStateChanger.getFQinstance(), minK, maxK, (s,i) -> new ReadPos(readMap.geNext(s), i));
     }
 
 

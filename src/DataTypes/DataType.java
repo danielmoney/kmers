@@ -2,10 +2,8 @@ package DataTypes;
 
 import Compression.Compressor;
 import Compression.IntCompressor;
-import CountMaps.CountMap;
 import CountMaps.TreeCountMap;
-import KmerFiles.CountCompressor;
-import Kmers.Kmer;
+import Counts.CountCompressor;
 import Kmers.KmerWithData;
 import Reads.ReadPos;
 import Reads.ReadPosCompressor;
@@ -13,14 +11,13 @@ import Reads.ReadPosSetCompressor;
 
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class DataType<D,C>
 {
-    public DataType(Compressor<D> dataCompressor, Compressor<C> collectionCompressor,
+    private DataType(Compressor<D> dataCompressor, Compressor<C> collectionCompressor,
                     BiConsumer<C,C> merger, Collector<D,?,C> collector)
     {
         this.dataCompressor = dataCompressor;
@@ -67,15 +64,26 @@ public class DataType<D,C>
 
     public static DataType<ReadPos, Set<ReadPos>> getReadPosInstance()
     {
-        return new DataType<>(new ReadPosCompressor(), new ReadPosSetCompressor(),
-                (s1, s2) -> s1.addAll(s2),
-                Collectors.toSet());
+        if (readPosInstance == null)
+        {
+            readPosInstance = new DataType<>(new ReadPosCompressor(), new ReadPosSetCompressor(),
+                    (s1, s2) -> s1.addAll(s2),
+                    Collectors.toSet());
+        }
+        return readPosInstance;
     }
 
     public static DataType<Integer, TreeCountMap<Integer>> getCountInstance()
     {
-        return new DataType<>(new IntCompressor(), new CountCompressor(),
-                (c1,c2) -> c1.addAll(c2),
-                TreeCountMap.collector());
+        if (countInstance == null)
+        {
+            countInstance = new DataType<>(new IntCompressor(), new CountCompressor(),
+                    (c1, c2) -> c1.addAll(c2),
+                    TreeCountMap.collector());
+        }
+        return countInstance;
     }
+
+    private static DataType<ReadPos,Set<ReadPos>> readPosInstance = null;
+    private static DataType<Integer,TreeCountMap<Integer>> countInstance = null;
 }

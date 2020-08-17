@@ -1,39 +1,33 @@
 package Database;
 
-import Concurrent.LimitedQueueExecutor;
 import Concurrent.LimitedQueueExecutor2;
 import DataTypes.DataType;
-import Exceptions.InvalidBaseException;
 import KmerFiles.KmerFile;
 import Kmers.KmerUtils;
 import Kmers.KmerWithData;
-import Kmers.KmerWithDataStreamWrapper;
+import Kmers.KmerStream;
 import Streams.StreamUtils;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import java.util.zip.DataFormatException;
 
 public class DB<D>
 {
-    public DB(List<KmerFile<D>> files) //, /*BinaryOperator<D> mergeDataFunction*/ DataType<?,D> dataType)
+    public DB(List<KmerFile<D>> files)
     {
         // Stop this being modified after creation by creating a new copy as we do some checks on the files at construction
         this.files = new LinkedList<>(files);
-//        this.merge = mergeDataFunction;
-//        this.dataType = dataType;
 
         this.dataType = files.get(0).getDataType();
-        // Check all files are the same!
+        for (KmerFile<D> f: files)
+        {
+            // Check for relevant simialrity and throw error
+        }
 
         if (files.isEmpty())
         {
@@ -45,105 +39,68 @@ public class DB<D>
         this.maxLength = files.get(0).getMaxLength();
         this.keyLength = files.get(0).getKeyLength();
         // We can probably cope with key length of different length but can add that in later if needed.
+        // Probably also different min / maes by using min of the maxes and the max of the mins and the filtering
+        // when getting the kmers.  This can be a later enchacement!
 
         for (KmerFile<D> f: files)
         {
-            if ((f.getMinLength() != minLength) || (f.getMaxLength() != maxLength)  || (f.getKeyLength() != keyLength))
+            if ((f.getMinLength() != minLength) || (f.getMaxLength() != maxLength)  || (f.getKeyLength() != keyLength)
+                    || !f.getRC())
             {
                 // Throw an error!
             }
         }
     }
 
-
-//    public <S> Stream<ClosestInfo<S,D>> getNearestKmers(Stream<KmerWithData<S>> searchKmers, int maxDiff, boolean just)
-//    {
-//        return StreamUtils.groupedStream(searchKmers, (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList())
-//                .map(l -> processNearestCommonKey(l, maxDiff, just).stream()).flatMap(s -> s);
-//    }
-
-    public <S> Stream<ClosestInfo<S,D>> getNearestKmers(KmerWithDataStreamWrapper<S> searchKmers, int maxDiff, boolean just)
+    public <S> Stream<ClosestInfo<S,D>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just)
     {
+        if ((searchKmers.getMinLength() < minLength) || (searchKmers.getMaxLength() > maxLength))
+        {
+            // Throw an error
+        }
+
         if ((searchKmers.getMinLength() == searchKmers.getMaxLength()) && (maxDiff == 0)) //Quick match
         {
-            return StreamUtils.matchTwoStreams(searchKmers.stream(),
-//                    KmerUtils.restrictedStream(allKmers(),searchKmers.getMinLength(),searchKmers.getMaxLength(), merge),
+            return StreamUtils.matchTwoStreams(searchKmers.onlyStandard().stream(),
                     KmerUtils.restrictedStream(allKmers(),searchKmers.getMinLength(),searchKmers.getMaxLength(), dataType).stream(),
                     (kwd1, kwd2) -> new ClosestInfo<>(kwd1,kwd2),
                     (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer()));
         }
         else
         {
-            Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
+            Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.onlyStandard().stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
             return StreamSupport.stream(new ProcessCommonSpliterator<>(groupedStream, maxDiff, just), false).flatMap(l -> l.stream());
         }
     }
 
-    public <S> List<ClosestInfo<S,D>> getNearestKmers(List<KmerWithData<S>> kmers, int maxDiff, boolean just) throws InvalidBaseException, IOException, DataFormatException
-    {
-        return  getNearestKmers(kmers, maxDiff, just, false);
-    }
-
-    public <S> List<ClosestInfo<S,D>> getNearestKmers(List<KmerWithData<S>> kmers, int maxDiff, boolean just, boolean sorted) throws InvalidBaseException, IOException, DataFormatException
-    {
-        //Map<KmerWithData<S>, ClosestInfo<S,D>> ret = new TreeMap<>();
-        List<ClosestInfo<S,D>> ret = new ArrayList<>();
-
-        if (!sorted)
-        {
-            Collections.sort(kmers);
-        }
-
-        int curkey = kmers.get(0).getKmer().key(keyLength);
-        List<KmerWithData<S>> commonKey = new LinkedList<>();
-
-        for (KmerWithData<S> k: kmers)
-        {
-            if (k.getKmer().key(keyLength) != curkey)
-            {
-                //ret.putAll(processNearestCommonKey(commonKey, maxDiff, just));
-                ret.addAll(processNearestCommonKey(commonKey, maxDiff, just));
-                curkey = k.getKmer().key(keyLength);
-                commonKey = new LinkedList<>();
-            }
-            commonKey.add(k);
-        }
-        //ret.putAll(processNearestCommonKey(commonKey,maxDiff,just));
-        ret.addAll(processNearestCommonKey(commonKey, maxDiff, just));
-
-        //return new LinkedList<>(ret.values());
-        return ret;
-    }
-
-    public KmerWithDataStreamWrapper<D> kmers(int key)
+    public KmerStream<D> kmers(int key)
     {
         // Don't need to check that db streams have same min/max length as we should check that at db creation
-        return new KmerWithDataStreamWrapper<>(
+        return new KmerStream<>(
                 StreamUtils.mergeSortedStreams(files.stream().map(f -> f.kmers(key).stream()).collect(Collectors.toList()),
                 (kwd1,kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())),
                 minLength,
-                maxLength);
+                maxLength,
+                true);
     }
 
-    public KmerWithDataStreamWrapper<D> allKmers()
+    public KmerStream<D> allKmers()
     {
         // Don't need to check that db streams have same min/max length as we should check that at db creation
-        return new KmerWithDataStreamWrapper<>(
+        return new KmerStream<>(
                 StreamUtils.mergeSortedStreams(files.stream().map(f -> f.allKmers().stream()).collect(Collectors.toList()),
                         (kwd1,kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())),
                 minLength,
-                maxLength);
+                maxLength,
+                true);
     }
 
-    //private <S> Map<KmerWithData<S>, ClosestInfo<S,D>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just)
     private <S> List<ClosestInfo<S,D>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just)
     {
-//        Map<KmerWithData<S>, ClosestInfo<S,D>> currentBest = new TreeMap<>();
         List<ClosestInfo<S,D>> currentBest = new ArrayList<>(kmers.size());
 
         for (KmerWithData<S> k: kmers)
         {
-            //currentBest.put(k, new ClosestInfo<S,D>(k,new HashMap<>(), maxDiff));
             currentBest.add(new ClosestInfo<S,D>(k,new HashMap<>(), maxDiff));
         }
 
@@ -151,29 +108,18 @@ public class DB<D>
         System.arraycopy(kmers.get(0).getKmer().getRawBytes(),0,keybytes,0,keyLength);
         TreeSet<Integer> closekeys = KmerUtils.getCloseKeys(keybytes, maxDiff);
 
-        /**************************************************************************
-         * ************************************************************************
-         * Should we paralize here? or maybe in above function?
-         * Current thought is above but want to think about more...
-         * ************************************************************************
-         **************************************************************************/
-
-
         for (int key: closekeys)
         {
-//            Root<D> r = new Root<>(maxLength,minLength,merge);
             Root<D> r = new Root<>(maxLength,minLength,dataType);
-//                System.out.println(key);
             for (KmerFile<D> f: files)
             {
-                f.kmers(key).stream().forEach(k -> r.addKmer(k));
+                //f.kmers(key).stream().forEach(k -> r.addKmer(k));
+                r.addKmers(f.kmers(key));
             }
-            //for (KmerWithData<S> k : kmers)
             for (int i = 0; i < kmers.size(); i++)
             {
                 KmerWithData<S> k = kmers.get(i);
                 ClosestInfo<S,D> newci = r.closestKmers(k, maxDiff, just);
-                //ClosestInfo<S,D> oldci = currentBest.get(k);
                 ClosestInfo<S,D> oldci = currentBest.get(i);
                 if ((newci.getMinDist() == oldci.getMinDist()) || !just)
                 {
@@ -181,7 +127,6 @@ public class DB<D>
                 }
                 if ((newci.getMinDist() < oldci.getMinDist()) && just)
                 {
-                    //currentBest.put(k, newci);
                     currentBest.set(i,newci);
                 }
             }
@@ -265,7 +210,6 @@ public class DB<D>
         private boolean just;
     }
 
-//    private BiConsumer<D,D> merge;
     private DataType<?,D> dataType;
     private int keyLength;
     private int minLength;

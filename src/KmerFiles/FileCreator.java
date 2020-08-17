@@ -8,8 +8,7 @@ import DataTypes.DataType;
 import IndexedFiles.*;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
-import Kmers.KmerWithDataStreamWrapper;
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
+import Kmers.KmerStream;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,20 +17,16 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 import java.util.stream.Collector;
 
-public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoCloseable
+public class FileCreator<I,O> implements AutoCloseable
 {
     public FileCreator(File dbFileTemp,
                        int keyLength, int maxKmerLength, int cacheSize,
-//                       Compressor<I> inputCompressor, Compressor<O> outputCompressor,
-//                       Collector<I,?,O> collector) throws IOException
-                        DataType<I,O> dataType) throws IOException
+                        DataType<I,O> dataType, boolean rc) throws IOException
     {
         this.dbFileTemp = dbFileTemp;
         dbFileTemp.deleteOnExit();
-//        indexFileTemp.deleteOnExit();
 
         maxkey = 1;
         for (int i = 0; i < keyLength; i++)
@@ -43,35 +38,15 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
 
         this.keyLength = keyLength;
 
-//        this.maxKmerLength = maxKmerLength;
-//
-//        this.inputCompressor = inputCompressor;
-//
-//        this.outputCompressor = outputCompressor;
-//
-//        this.collector = collector;
-
         this.dataType = dataType;
 
         this.minK = -1;
         this.maxK = -1;
+
+        this.rc = rc;
     }
 
-//    public void accept(KmerWithData<I> kwd)
-//    {
-//        try
-//        {
-//            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(inputCompressor));
-//            KmerWithData<I> rc = new KmerWithData<>(kwd.getKmer().getRC(), kwd.getData());
-//            fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(inputCompressor));
-//        }
-//        catch (IOException e)
-//        {
-//            throw new UncheckedIOException(e);
-//        }
-//    }
-
-    public void addKmers(KmerWithDataStreamWrapper<I> kmerStream)
+    public void addKmers(KmerStream<I> kmerStream)
     {
         // Need some checking here!!
         if (minK == -1)
@@ -84,64 +59,41 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
             // Throw some exception!!
         }
 
-        kmerStream.stream().forEach(kwd -> {
+        if (rc)
+        {
+            kmerStream.forEach(kwd -> {
                         try
                         {
-                            //fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(inputCompressor));
                             fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
                             KmerWithData<I> rc = new KmerWithData<>(kwd.getKmer().getRC(), kwd.getData());
-                            //fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(inputCompressor));
-                            fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
+                            //Check for plaindromes
+                            if (!kwd.getKmer().equals(rc.getKmer()))
+                            {
+                                fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
+                            }
                         }
                         catch (IOException ex)
                         {
                             throw new UncheckedIOException(ex);
                         }
                     }
-                );
+            );
+        }
+        else
+        {
+            kmerStream.forEach(kwd -> {
+                        try
+                        {
+                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
+                        }
+                        catch (IOException ex)
+                        {
+                            throw new UncheckedIOException(ex);
+                        }
+                    }
+            );
+        }
     }
-
-//    public void create(IndexedOutputFile2<Integer> out, boolean compress) throws Exception
-//    {
-//        fileCache.close();
-//
-//        IndexedInputFile2 tempIn = new ZippedIndexedInputFile2(dbFileTemp);
-//
-//        LimitedQueueExecutor exec = new LimitedQueueExecutor(7,7);
-//
-//        OrderedIndexOutput2 orderedout = new OrderedIndexOutput2(out,maxkey);
-//
-//        byte[] meta;
-//        if (compress)
-//        {
-//            meta = new byte[3];
-//            meta[0] = (byte) minK;
-//            meta[1] = (byte) maxK;
-//            meta[2] = (byte) keyLength;
-//        }
-//        else
-//        {
-//            StringBuffer sb = new StringBuffer();
-//            sb.append(minK);
-//            sb.append("\n");
-//            sb.append(maxK);
-//            sb.append("\n");
-//            sb.append(keyLength);
-//            sb.append("\n");
-//            meta = sb.toString().getBytes();
-//        }
-//        out.write(meta,-1);
-//
-//        for (int i = 0; i < maxkey; i++)
-//        {
-//            exec.execute(new MakeAndWriteKey(tempIn,i,orderedout,maxKmerLength, inputCompressor, outputCompressor, collector, compress));
-//        }
-//
-//        exec.shutdown();
-//
-//        out.close();
-//        tempIn.close();
-//    }
 
     public void create(IndexedOutputFile<Integer> out, boolean hr) throws Exception
     {
@@ -160,8 +112,8 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
             bb.put((byte) minK);
             bb.put((byte) maxK);
             bb.put((byte) keyLength);
-//            bb.putInt(outputCompressor.getID());
             bb.putInt(dataType.getCollectionCompressor().getID());
+            bb.put(rc ? (byte) 1 : (byte) 0);
             meta = bb.array();
         }
         else
@@ -173,8 +125,9 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
             sb.append("\n");
             sb.append(keyLength);
             sb.append("\n");
-            //sb.append(outputCompressor.getID());
             sb.append(dataType.getCollectionCompressor().getID());
+            sb.append("\n");
+            sb.append(rc ? "1" : "0");
             sb.append("\n");
             meta = sb.toString().getBytes();
         }
@@ -182,7 +135,6 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
 
         for (int i = 0; i < maxkey; i++)
         {
-            //exec.execute(new MakeAndWriteKey<>(tempIn,i,orderedout,maxKmerLength, inputCompressor, outputCompressor, collector, hr));
             exec.execute(new MakeAndWriteKey<>(tempIn,i,orderedout, maxKmerLength, dataType.getDataCompressor(),
                     dataType.getCollectionCompressor(), dataType.getCollector(), hr));
         }
@@ -247,10 +199,7 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
 
             try
             {
-//                byte[] indata = in.data(index);
                 ByteBuffer indata = ByteBuffer.wrap(in.data(index));
-//                int cr = 0;
-//                while (cr < indata.length)
                 while (indata.hasRemaining())
                 {
                     byte len = indata.get();
@@ -260,22 +209,16 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
 
                     indata.get(kb, 1, l);
 
-                    //Kmer k = Kmer.createFromCompressed(Arrays.copyOfRange(indata, cr, cr + l + 1));
                     Kmer k = Kmer.createFromCompressed(kb);
-//                    cr += l + 1;
-//                    I d = inputCompressor.decompress(Arrays.copyOfRange(indata, cr, cr + 4));
                     I d = inputCompressor.decompress(indata);
-//                    cr += 4;
 
 
                     A cm = kmers.get(k);
                     if (cm == null)
                     {
-//                        cm = new TreeCountMap<>();
                         cm = collector.supplier().get();
                         kmers.put(k, cm);
                     }
-                    //cm.add(d);
                     collector.accumulator().accept(cm, d);
                 }
 
@@ -347,7 +290,6 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
                             sb.append("\n");
                             last = next;
                         }
-                        //                output.write(sb.toString().getBytes("UTF-8"),i);
                         data = sb.toString().getBytes("UTF-8");
                     }
                 }
@@ -383,15 +325,12 @@ public class FileCreator<I,O> implements /*Consumer<KmerWithData<I>>,*/ AutoClos
         private boolean compress;
     }
 
+    private boolean rc;
+
     private int minK;
     private int maxK;
 
     private File dbFileTemp;
-
-//    private Compressor<I> inputCompressor;
-//    private Compressor<O> outputCompressor;
-//
-//    private Collector<I,?,O> collector;
 
     private DataType<I,O> dataType;
 

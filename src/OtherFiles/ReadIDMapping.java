@@ -1,9 +1,6 @@
-package Reads;
+package OtherFiles;
 
 import java.io.*;
-import java.util.HashMap;
-import java.util.function.BiFunction;
-import java.util.zip.GZIPOutputStream;
 
 public class ReadIDMapping
 {
@@ -14,7 +11,7 @@ public class ReadIDMapping
         curReadI = -1;
     }
 
-    public int getIntID(String id)
+    public int geNext(String id)
     {
         if (!id.equals(curReadS))
         {

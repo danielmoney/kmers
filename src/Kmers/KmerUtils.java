@@ -7,8 +7,6 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.TreeSet;
-import java.util.function.BinaryOperator;
-import java.util.stream.Stream;
 
 public class KmerUtils
 {
@@ -58,13 +56,13 @@ public class KmerUtils
         return key;
     }
 
-    public static <D> KmerWithDataStreamWrapper<D> restrictedStream(KmerWithDataStreamWrapper<D> stream,
-                                                               int minLength, int maxLength, DataType<?,D> dataType)
+    public static <D> KmerStream<D> restrictedStream(KmerStream<D> stream,
+                                                     int minLength, int maxLength, DataType<?,D> dataType)
     {
-        return new KmerWithDataStreamWrapper<>(StreamUtils.groupAndReduceStream(
-                stream.stream().filter(kwd -> kwd.getKmer().length() >= minLength).map(kwd -> kwd.limitTo(maxLength)),
+        return new KmerStream<>(StreamUtils.groupAndReduceStream(
+                stream.filter(kwd -> kwd.getKmer().length() >= minLength).map(kwd -> kwd.limitTo(maxLength)).stream(),
                 (kwd1,kwd2) -> kwd1.getKmer().equals(kwd2.getKmer()),
                 dataType.getKmerReducer()
-        ),minLength,maxLength);
+        ),minLength,maxLength,stream.getRC());
     }
 }

@@ -40,7 +40,9 @@ public class ClosestInfo<S,M>
     public void merge(ClosestInfo<S,M> oci)
     {
         //Should probably throw an error if the search kmer is not the same
-        //Should probably throw error if dists are not the same...
+        /**********
+         * Need to check we don't merge in a rc of something already there
+         */
         matchedKmers.putAll(oci.getMatchedKmers());
         mindist = Math.min(mindist,oci.getMinDist());
     }
