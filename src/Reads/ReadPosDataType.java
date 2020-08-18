@@ -1,12 +1,12 @@
 package Reads;
 
-import Compression.Compressor;
+import DataTypes.DataType;
 
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class ReadPosCompressor implements Compressor<ReadPos>
+public class ReadPosDataType implements DataType<ReadPos>
 {
     public byte[] compress(ReadPos rp)
     {

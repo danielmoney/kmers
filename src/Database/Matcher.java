@@ -1,10 +1,11 @@
 package Database;
 
 import CountMaps.TreeCountMap;
-import DataTypes.DataType;
+import Counts.CountDataType;
+import DataTypes.DataCollector;
 import KmerFiles.KmerFile;
-import Kmers.KmerStream;
 import Reads.ReadPos;
+import Reads.ReadPosSetDataType;
 import org.apache.commons.cli.*;
 
 import java.io.File;
@@ -14,7 +15,6 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 public class Matcher
 {
@@ -37,7 +37,7 @@ public class Matcher
         List<KmerFile<TreeCountMap<Integer>>> dbfiles = new LinkedList<>();
         for (int i = 1; i < a.size(); i ++)
         {
-            dbfiles.add(new KmerFile<>(new File(a.get(i)), DataType.getCountInstance()));
+            dbfiles.add(new KmerFile<>(new File(a.get(i)), new CountDataType()));
         }
         DB<TreeCountMap<Integer>> db = new DB<>(dbfiles);
 
@@ -46,7 +46,7 @@ public class Matcher
         if (dataID == 1026) // If reads file against db
         {
             KmerFile<Set<ReadPos>> matchFile = new KmerFile<>(f,
-                    DataType.getReadPosInstance());
+                    new ReadPosSetDataType());
         }
 
         // Output file - maybe pos 1?

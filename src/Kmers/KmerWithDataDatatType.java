@@ -1,15 +1,16 @@
 package Kmers;
 
 import Compression.Compressor;
+import DataTypes.DataType;
 
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-public class KmerWithDataCompressor<D> implements Compressor<KmerWithData<D>>
+public class KmerWithDataDatatType<D> implements DataType<KmerWithData<D>>
 {
-    public KmerWithDataCompressor(Compressor<D> dataCompressor)
+    public KmerWithDataDatatType(DataType<D> dataCompressor)
     {
         this.dataCompressor = dataCompressor;
     }
@@ -81,5 +82,5 @@ public class KmerWithDataCompressor<D> implements Compressor<KmerWithData<D>>
         return 2048 + dataCompressor.getID();
     }
 
-    Compressor<D> dataCompressor;
+    DataType<D> dataCompressor;
 }

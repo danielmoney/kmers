@@ -1,6 +1,6 @@
 package Database;
 
-import DataTypes.DataType;
+import DataTypes.MergeableDataType;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
 import Kmers.KmerStream;
@@ -10,7 +10,7 @@ import java.util.function.BiConsumer;
 
 public class Root<D>
 {
-    Root(int kmerLength, int shortest, DataType<?,D> dataType)
+    Root(int kmerLength, int shortest, MergeableDataType<D> dataType)
     {
         size = 0;
         root = null;

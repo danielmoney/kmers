@@ -2,7 +2,7 @@ package KmerFiles;
 
 import Compression.Compressor;
 import Compression.IntCompressor;
-import DataTypes.DataType;
+import DataTypes.MergeableDataType;
 import IndexedFiles.IndexedInputFile;
 import IndexedFiles.StandardIndexedInputFile;
 import IndexedFiles.ZippedIndexedInputFile;
@@ -23,12 +23,12 @@ import java.util.stream.StreamSupport;
 
 public class KmerFile<D>
 {
-    public KmerFile(File file, DataType<?,D> dataType) throws IOException
+    public KmerFile(File file, MergeableDataType<D> dataType) throws IOException
     {
         this.file = getIndexedInputFile(file);
         this.dataType = dataType;
         this.meta = getMetaData(file);
-        if (meta.dataID != dataType.getCollectionCompressor().getID())
+        if (meta.dataID != dataType.getID())
         {
             //throw an error
         }
@@ -42,7 +42,7 @@ public class KmerFile<D>
         }
         else
         {
-            return StreamSupport.stream(new CompressedKmerSpliterator<>(file.data(key), dataType.getCollectionCompressor()), false);
+            return StreamSupport.stream(new CompressedKmerSpliterator<>(file.data(key), dataType), false);
         }
     }
 
@@ -99,7 +99,7 @@ public class KmerFile<D>
         return meta.rc;
     }
 
-    public DataType<?,D> getDataType()
+    public MergeableDataType<D> getDataType()
     {
         return dataType;
     }
@@ -117,7 +117,7 @@ public class KmerFile<D>
                     {
                         String[] parts = l.split("\t");
                         Kmer kmer = Kmer.createUnchecked(prev[0], parts[0]);
-                        D data = dataType.getCollectionCompressor().fromString(parts[1]);
+                        D data = dataType.fromString(parts[1]);
                         prev[0] = kmer;
                         return new KmerWithData<>(kmer, data);
                     }
@@ -130,7 +130,7 @@ public class KmerFile<D>
     }
 
     protected IndexedInputFile<Integer> file;
-    private DataType<?,D> dataType;
+    private MergeableDataType<D> dataType;
     private MetaData meta;
 
     private static class MetaData

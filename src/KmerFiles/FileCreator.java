@@ -4,12 +4,13 @@ import Compression.Compressor;
 import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
 import Concurrent.OrderedIndexOutput;
+import DataTypes.DataCollector;
 import DataTypes.DataType;
 import IndexedFiles.*;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
 import Kmers.KmerStream;
-import Kmers.KmerWithDataCompressor;
+import Kmers.KmerWithDataDatatType;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class FileCreator<I,O> implements AutoCloseable
 {
     public FileCreator(File dbFileTemp,
                        int keyLength, int maxKmerLength, int cacheSize,
-                        DataType<I,O> dataType, boolean rc) throws IOException
+                       DataCollector<I,O> dataCollector, boolean rc) throws IOException
     {
         this.dbFileTemp = dbFileTemp;
         dbFileTemp.deleteOnExit();
@@ -39,9 +40,9 @@ public class FileCreator<I,O> implements AutoCloseable
 
         this.keyLength = keyLength;
 
-        this.dataType = dataType;
+        this.dataCollector = dataCollector;
 
-        kwdCompressor = new KmerWithDataCompressor<>(dataType.getDataCompressor());
+        kwdCompressor = new KmerWithDataDatatType<>(dataCollector.getDataDataType());
 
         this.minK = -1;
         this.maxK = -1;
@@ -118,7 +119,7 @@ public class FileCreator<I,O> implements AutoCloseable
             bb.put((byte) minK);
             bb.put((byte) maxK);
             bb.put((byte) keyLength);
-            bb.putInt(dataType.getCollectionCompressor().getID());
+            bb.putInt(dataCollector.getCollectionDataType().getID());
             bb.put(rc ? (byte) 1 : (byte) 0);
             meta = bb.array();
         }
@@ -131,7 +132,7 @@ public class FileCreator<I,O> implements AutoCloseable
             sb.append("\n");
             sb.append(keyLength);
             sb.append("\n");
-            sb.append(dataType.getCollectionCompressor().getID());
+            sb.append(dataCollector.getCollectionDataType().getID());
             sb.append("\n");
             sb.append(rc ? "1" : "0");
             sb.append("\n");
@@ -141,8 +142,8 @@ public class FileCreator<I,O> implements AutoCloseable
 
         for (int i = 0; i < maxkey; i++)
         {
-            exec.execute(new MakeAndWriteKey<>(tempIn,i,orderedout, maxKmerLength, dataType.getDataCompressor(),
-                    dataType.getCollectionCompressor(), dataType.getCollector(), hr));
+            exec.execute(new MakeAndWriteKey<>(tempIn,i,orderedout, maxKmerLength, dataCollector.getDataDataType(),
+                    dataCollector.getCollectionDataType(), dataCollector.getCollector(), hr));
         }
 
         exec.shutdown();
@@ -185,8 +186,8 @@ public class FileCreator<I,O> implements AutoCloseable
 
     private static class MakeAndWriteKey<I,O,A> implements Runnable
     {
-        private MakeAndWriteKey(IndexedInputFile in, int index, OrderedIndexOutput out, int maxKmerLength, Compressor<I> inputCompressor,
-                                Compressor<O> outputCompressor, Collector<I, A, O> collector, boolean hr)
+        private MakeAndWriteKey(IndexedInputFile in, int index, OrderedIndexOutput out, int maxKmerLength, DataType<I> inputCompressor,
+                                DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr)
         {
             this.in = in;
             this.index = index;
@@ -326,8 +327,8 @@ public class FileCreator<I,O> implements AutoCloseable
         private int index;
         private OrderedIndexOutput out;
         private int maxKmerLength;
-        private Compressor<I> inputCompressor;
-        private Compressor<O> outputCompressor;
+        private DataType<I> inputCompressor;
+        private DataType<O> outputCompressor;
         private boolean compress;
     }
 
@@ -338,8 +339,8 @@ public class FileCreator<I,O> implements AutoCloseable
 
     private File dbFileTemp;
 
-    private DataType<I,O> dataType;
-    private KmerWithDataCompressor<I> kwdCompressor;
+    private DataCollector<I,O> dataCollector;
+    private KmerWithDataDatatType<I> kwdCompressor;
 
     private int maxKmerLength;
     private int keyLength;

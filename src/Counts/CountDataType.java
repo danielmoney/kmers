@@ -2,14 +2,16 @@ package Counts;
 
 import Compression.Compressor;
 import CountMaps.TreeCountMap;
+import DataTypes.MergeableDataType;
 
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-public class CountCompressor implements Compressor<TreeCountMap<Integer>>
+public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
 {
     public byte[] compress(TreeCountMap<Integer> map)
     {
@@ -91,5 +93,10 @@ public class CountCompressor implements Compressor<TreeCountMap<Integer>>
     public int getID()
     {
         return 1024;
+    }
+
+    public BiConsumer<TreeCountMap<Integer>, TreeCountMap<Integer>> getMerger()
+    {
+        return (c1, c2) -> c1.addAll(c2);
     }
 }

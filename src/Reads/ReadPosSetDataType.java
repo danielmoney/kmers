@@ -1,14 +1,16 @@
 package Reads;
 
 import Compression.Compressor;
+import DataTypes.MergeableDataType;
 
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-public class ReadPosSetCompressor implements Compressor<Set<ReadPos>>
+public class ReadPosSetDataType implements MergeableDataType<Set<ReadPos>>
 {
     public byte[] compress(Set<ReadPos> set)
     {
@@ -86,6 +88,11 @@ public class ReadPosSetCompressor implements Compressor<Set<ReadPos>>
             ret.add(new ReadPos(Integer.valueOf(ps[0]), Short.valueOf(ps[1])));
         }
         return ret;
+    }
+
+    public BiConsumer<Set<ReadPos>, Set<ReadPos>> getMerger()
+    {
+        return (s1, s2) -> s1.addAll(s2);
     }
 
     public int getID()

@@ -1,6 +1,6 @@
 package Kmers;
 
-import DataTypes.DataType;
+import DataTypes.MergeableDataType;
 import Streams.StreamUtils;
 
 import java.util.Arrays;
@@ -57,7 +57,7 @@ public class KmerUtils
     }
 
     public static <D> KmerStream<D> restrictedStream(KmerStream<D> stream,
-                                                     int minLength, int maxLength, DataType<?,D> dataType)
+                                                     int minLength, int maxLength, MergeableDataType<D> dataType)
     {
         return new KmerStream<>(StreamUtils.groupAndReduceStream(
                 stream.filter(kwd -> kwd.getKmer().length() >= minLength).map(kwd -> kwd.limitTo(maxLength)).stream(),

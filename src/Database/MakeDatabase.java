@@ -1,9 +1,8 @@
 package Database;
 
 import Compression.IntCompressor;
-import CountMaps.CountMap;
 import CountMaps.TreeCountMap;
-import DataTypes.DataType;
+import DataTypes.DataCollector;
 import IndexedFiles.IndexedOutputFile;
 import IndexedFiles.StandardIndexedOutputFile;
 import IndexedFiles.ZippedIndexedOutputFile;
@@ -69,7 +68,7 @@ public class MakeDatabase
         if (commands.hasOption('r'))
         {
             // True is to include reverse complement - should have as a optional param as well?
-            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(a.get(1) + ".tmp"),l,k,c, DataType.getCountInstance(), true);
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(a.get(1) + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
 
             KmersFromFile<Integer> kf = KmersFromFile.getFQtoRefDBInstance(j, k);
 
@@ -77,7 +76,7 @@ public class MakeDatabase
         }
         if (commands.hasOption('d'))
         {
-            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(a.get(1) + ".tmp"),l,k,c, DataType.getReadPosInstance(), false);
+            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(a.get(1) + ".tmp"),l,k,c, DataCollector.getReadPosInstance(), false);
 
             PrintWriter outReadMap = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(
                     new FileOutputStream(new File(commands.getOptionValue('m')))))));

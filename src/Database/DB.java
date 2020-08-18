@@ -1,7 +1,7 @@
 package Database;
 
 import Concurrent.LimitedQueueExecutor2;
-import DataTypes.DataType;
+import DataTypes.MergeableDataType;
 import KmerFiles.KmerFile;
 import Kmers.KmerUtils;
 import Kmers.KmerWithData;
@@ -210,7 +210,7 @@ public class DB<D>
         private boolean just;
     }
 
-    private DataType<?,D> dataType;
+    private MergeableDataType<D> dataType;
     private int keyLength;
     private int minLength;
     private int maxLength;
