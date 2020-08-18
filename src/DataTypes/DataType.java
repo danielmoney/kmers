@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 public class DataType<D,C>
 {
-    private DataType(Compressor<D> dataCompressor, Compressor<C> collectionCompressor,
+    DataType(Compressor<D> dataCompressor, Compressor<C> collectionCompressor,
                     BiConsumer<C,C> merger, Collector<D,?,C> collector)
     {
         this.dataCompressor = dataCompressor;

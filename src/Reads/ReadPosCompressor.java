@@ -16,11 +16,11 @@ public class ReadPosCompressor implements Compressor<ReadPos>
         return bb.array();
     }
 
-    public ReadPos decompress(byte[] data)
-    {
-        ByteBuffer bb = ByteBuffer.wrap(data);
-        return decompress(bb);
-    }
+//    public ReadPos decompress(byte[] data)
+//    {
+//        ByteBuffer bb = ByteBuffer.wrap(data);
+//        return decompress(bb);
+//    }
 
     public ReadPos decompress(ByteBuffer bb)
     {

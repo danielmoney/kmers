@@ -26,7 +26,7 @@ public class ReadPosSetCompressor implements Compressor<Set<ReadPos>>
         return b.array();
     }
 
-    public Set<ReadPos> decompress(byte[] bytes)
+    private Set<ReadPos> decompress(byte[] bytes)
     {
         ByteBuffer b = ByteBuffer.wrap(bytes);
 

@@ -28,7 +28,7 @@ public class CountCompressor implements Compressor<TreeCountMap<Integer>>
         return b.array();
     }
 
-    public TreeCountMap<Integer> decompress(byte[] bytes)
+    private TreeCountMap<Integer> decompress(byte[] bytes)
     {
         ByteBuffer b = ByteBuffer.wrap(bytes);
 

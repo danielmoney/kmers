@@ -9,6 +9,7 @@ import IndexedFiles.*;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
 import Kmers.KmerStream;
+import Kmers.KmerWithDataCompressor;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,6 +41,8 @@ public class FileCreator<I,O> implements AutoCloseable
 
         this.dataType = dataType;
 
+        kwdCompressor = new KmerWithDataCompressor<>(dataType.getDataCompressor());
+
         this.minK = -1;
         this.maxK = -1;
 
@@ -64,12 +67,14 @@ public class FileCreator<I,O> implements AutoCloseable
             kmerStream.forEach(kwd -> {
                         try
                         {
-                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
+//                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
+                            fileCache.add(kwd.getKmer().key(keyLength), kwdCompressor.compress(kwd));
                             KmerWithData<I> rc = new KmerWithData<>(kwd.getKmer().getRC(), kwd.getData());
                             //Check for plaindromes
                             if (!kwd.getKmer().equals(rc.getKmer()))
                             {
-                                fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
+//                                fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
+                                fileCache.add(rc.getKmer().key(keyLength), kwdCompressor.compress(rc));
                             }
                         }
                         catch (IOException ex)
@@ -84,7 +89,8 @@ public class FileCreator<I,O> implements AutoCloseable
             kmerStream.forEach(kwd -> {
                         try
                         {
-                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
+//                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
+                            fileCache.add(kwd.getKmer().key(keyLength), kwdCompressor.compress(kwd));
                         }
                         catch (IOException ex)
                         {
@@ -108,7 +114,7 @@ public class FileCreator<I,O> implements AutoCloseable
         byte[] meta;
         if (hr)
         {
-            ByteBuffer bb = ByteBuffer.allocate(7);
+            ByteBuffer bb = ByteBuffer.allocate(8);
             bb.put((byte) minK);
             bb.put((byte) maxK);
             bb.put((byte) keyLength);
@@ -333,6 +339,7 @@ public class FileCreator<I,O> implements AutoCloseable
     private File dbFileTemp;
 
     private DataType<I,O> dataType;
+    private KmerWithDataCompressor<I> kwdCompressor;
 
     private int maxKmerLength;
     private int keyLength;

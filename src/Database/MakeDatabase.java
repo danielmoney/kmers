@@ -51,7 +51,7 @@ public class MakeDatabase
 
         options.addOption(Option.builder("h").desc("Human readable output").build());
 
-        options.addOption(Option.builder("d").hasArg().desc("Filter kmers wirth of dust score greater than the given value").build());
+        options.addOption(Option.builder("u").hasArg().desc("Filter kmers wirth of dust score greater than the given value").build());
         options.addOption(Option.builder("s").hasArg().desc("Filter kmers with runs of the same base longer than the given value").build());
 
         CommandLineParser parser = new DefaultParser();
@@ -100,7 +100,7 @@ public class MakeDatabase
 
         KmerStream<D> kstream = kf.streamFromFile(in);
 
-        if (commands.hasOption('d'))
+        if (commands.hasOption('u'))
         {
             kstream = kstream.filter(new Dust(Integer.parseInt(commands.getOptionValue('d'))));
         }
