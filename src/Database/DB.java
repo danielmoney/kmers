@@ -1,7 +1,9 @@
 package Database;
 
-import Concurrent.LimitedQueueExecutor2;
+import Concurrent.LimitedQueueExecutor;
+import DataTypes.DataPair;
 import DataTypes.MergeableDataType;
+import Exceptions.InconsistentDataException;
 import KmerFiles.KmerFile;
 import Kmers.KmerUtils;
 import Kmers.KmerWithData;
@@ -18,7 +20,12 @@ import java.util.stream.StreamSupport;
 
 public class DB<D>
 {
-    public DB(List<KmerFile<D>> files)
+    public DB(KmerFile<D> file) throws InconsistentDataException
+    {
+        this(Collections.singletonList(file));
+    }
+
+    public DB(List<KmerFile<D>> files) throws InconsistentDataException
     {
         // Stop this being modified after creation by creating a new copy as we do some checks on the files at construction
         this.files = new LinkedList<>(files);
@@ -26,12 +33,15 @@ public class DB<D>
         this.dataType = files.get(0).getDataType();
         for (KmerFile<D> f: files)
         {
-            // Check for relevant simialrity and throw error
+            if (f.getDataType() != this.dataType)
+            {
+                throw new InconsistentDataException("Files contain different datatypes");
+            }
         }
 
         if (files.isEmpty())
         {
-            // Throw an error!!
+            throw new IllegalArgumentException("Empty file list");
         }
 
         // We need to get these from the files!!
@@ -47,30 +57,26 @@ public class DB<D>
             if ((f.getMinLength() != minLength) || (f.getMaxLength() != maxLength)  || (f.getKeyLength() != keyLength)
                     || !f.getRC())
             {
-                // Throw an error!
+                throw new InconsistentDataException("Files contains different kmer parameters (min/max length, key length or reverse complement included");
             }
         }
     }
 
-    public <S> Stream<ClosestInfo<S,D>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just)
+    //public <S> Stream<ClosestInfo<S,D>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just)
+    public <S> KmerStream<DataPair<S, ClosestInfo<D>>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just) throws InconsistentDataException
     {
         if ((searchKmers.getMinLength() < minLength) || (searchKmers.getMaxLength() > maxLength))
         {
-            // Throw an error
+            throw new InconsistentDataException("Search kmers contain kmers of a length inconsistent with the database");
         }
 
-        if ((searchKmers.getMinLength() == searchKmers.getMaxLength()) && (maxDiff == 0)) //Quick match
-        {
-            return StreamUtils.matchTwoStreams(searchKmers.onlyStandard().stream(),
-                    KmerUtils.restrictedStream(allKmers(),searchKmers.getMinLength(),searchKmers.getMaxLength(), dataType).stream(),
-                    (kwd1, kwd2) -> new ClosestInfo<>(kwd1,kwd2),
-                    (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer()));
-        }
-        else
-        {
-            Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.onlyStandard().stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
-            return StreamSupport.stream(new ProcessCommonSpliterator<>(groupedStream, maxDiff, just), false).flatMap(l -> l.stream());
-        }
+        boolean quick = ((searchKmers.getMinLength() == searchKmers.getMaxLength()) && (maxDiff == 0)); //Quick match
+
+        Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.onlyStandard().stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
+        ProcessCommonSpliterator<S> spliterator = new ProcessCommonSpliterator<>(groupedStream, maxDiff, just, quick, searchKmers.getMinLength(), searchKmers.getMaxLength());
+        return new KmerStream<>(
+                StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).flatMap(l -> l.stream()),
+                searchKmers.getMinLength(), searchKmers.getMaxLength(), searchKmers.getRC());
     }
 
     public KmerStream<D> kmers(int key)
@@ -95,13 +101,24 @@ public class DB<D>
                 true);
     }
 
-    private <S> List<ClosestInfo<S,D>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just)
+
+    private <S> List<KmerWithData<DataPair<S, ClosestInfo<D>>>> quickMatchCommonKey(List<KmerWithData<S>> kmers, int maxDiff)
     {
-        List<ClosestInfo<S,D>> currentBest = new ArrayList<>(kmers.size());
+        int key = kmers.get(0).getKmer().key(keyLength);
+        int length = kmers.get(0).getKmer().length();
+
+        return StreamUtils.matchTwoStreams(kmers.stream(),KmerUtils.restrictedStream(kmers(key),length,length, dataType).stream(),
+                (kwd1, kwd2) -> new KmerWithData<>(kwd1.getKmer(), new DataPair<>(kwd1.getData(), new ClosestInfo<>(kwd2))),
+                (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())).collect(Collectors.toList());
+    }
+
+    private <S> List<KmerWithData<DataPair<S, ClosestInfo<D>>>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just, int minK, int maxK)
+    {
+        List<ClosestInfo<D>> currentBest = new ArrayList<>(kmers.size());
 
         for (KmerWithData<S> k: kmers)
         {
-            currentBest.add(new ClosestInfo<S,D>(k,new HashMap<>(), maxDiff));
+            currentBest.add(new ClosestInfo<D>());
         }
 
         byte[] keybytes = new byte[keyLength];
@@ -110,7 +127,7 @@ public class DB<D>
 
         for (int key: closekeys)
         {
-            Root<D> r = new Root<>(maxLength,minLength,dataType);
+            Root<D> r = new Root<>(maxK,minK,dataType);
             for (KmerFile<D> f: files)
             {
                 //f.kmers(key).stream().forEach(k -> r.addKmer(k));
@@ -119,52 +136,78 @@ public class DB<D>
             for (int i = 0; i < kmers.size(); i++)
             {
                 KmerWithData<S> k = kmers.get(i);
-                ClosestInfo<S,D> newci = r.closestKmers(k, maxDiff, just);
-                ClosestInfo<S,D> oldci = currentBest.get(i);
+                ClosestInfo<D> newci = r.closestKmers(k, maxDiff, just);
+                ClosestInfo<D> oldci = currentBest.get(i);
                 if ((newci.getMinDist() == oldci.getMinDist()) || !just)
                 {
-                    oldci.merge(newci);
+//                    oldci.merge(newci);
+                    oldci.addAll(newci);
                 }
                 if ((newci.getMinDist() < oldci.getMinDist()) && just)
                 {
                     currentBest.set(i,newci);
                 }
             }
-         }
+        }
 
-        return currentBest;
+        List<KmerWithData<DataPair<S, ClosestInfo<D>>>> ret = new ArrayList<>(kmers.size());
+
+        for (int i = 0; i < kmers.size(); i++)
+        {
+            ret.add(new KmerWithData<>(kmers.get(i).getKmer(),
+                    new DataPair<>(kmers.get(i).getData(), currentBest.get(i))));
+        }
+
+        return ret;
     }
 
-    private class ProcessCommonSpliterator<S> implements Spliterator<List<ClosestInfo<S,D>>>
+    private class ProcessCommonSpliterator<S> implements Spliterator<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>>
     {
-        private ProcessCommonSpliterator(Stream<List<KmerWithData<S>>> inputStream, int maxDiff, boolean just)
+        private ProcessCommonSpliterator(Stream<List<KmerWithData<S>>> inputStream, int maxDiff, boolean just, boolean quick, int minK, int maxK)
         {
             this.input = inputStream.iterator();
-            ex = new LimitedQueueExecutor2<List<ClosestInfo<S,D>>>(7,1);
+            ex = new LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>>();
             futures = new LinkedList<>();
             for (int i = 0; i < 8; i++)
             {
                 if (input.hasNext())
                 {
                     List<KmerWithData<S>> l = input.next();
-                    futures.add(ex.submit(() -> processNearestCommonKey(l, maxDiff, just)));
+                    if (quick)
+                    {
+                        futures.add(ex.submit(() -> quickMatchCommonKey(l, maxDiff)));
+                    }
+                    else
+                    {
+                        futures.add(ex.submit(() -> processNearestCommonKey(l, maxDiff, just, minK, maxK)));
+                    }
                 }
             }
             this.maxDiff = maxDiff;
             this.just = just;
+            this.quick = quick;
+            this.minK = minK;
+            this.maxK = maxK;
         }
 
-        public boolean tryAdvance(Consumer<? super List<ClosestInfo<S,D>>> consumer)
+        public boolean tryAdvance(Consumer<? super List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> consumer)
         {
             if (!futures.isEmpty())
             {
                 try
                 {
-                    Future<List<ClosestInfo<S,D>>> future = futures.poll();
+                    Future<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> future = futures.poll();
                     if (input.hasNext())
                     {
                         List<KmerWithData<S>> l = input.next();
-                        futures.add(ex.submit(() -> processNearestCommonKey(l, maxDiff, just)));
+                        if (quick)
+                        {
+                            futures.add(ex.submit(() -> quickMatchCommonKey(l, maxDiff)));
+                        }
+                        else
+                        {
+                            futures.add(ex.submit(() -> processNearestCommonKey(l, maxDiff, just, minK, maxK)));
+                        }
                     }
                     else
                     {
@@ -174,11 +217,13 @@ public class DB<D>
                 }
                 catch (InterruptedException e)
                 {
-                    return false;
+                    // Shouldn't get here in the normal course of things so....
+                    throw new RuntimeException(e);
                 }
                 catch (ExecutionException e)
                 {
-                    return false;
+                    // or here...
+                    throw new RuntimeException(e);
                 }
                 return true;
             }
@@ -186,7 +231,7 @@ public class DB<D>
         }
 
         @Override
-        public Spliterator<List<ClosestInfo<S,D>>> trySplit()
+        public Spliterator<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> trySplit()
         {
             return null;
         }
@@ -203,11 +248,27 @@ public class DB<D>
             return Spliterator.IMMUTABLE | Spliterator.ORDERED;
         }
 
-        LinkedList<Future<List<ClosestInfo<S,D>>>> futures;
+        public void close()
+        {
+            try
+            {
+                ex.shutdown();
+            }
+            catch (InterruptedException e)
+            {
+                // Nothing much we can do here
+            }
+        }
+
+        LinkedList<Future<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>>> futures;
         Iterator<List<KmerWithData<S>>> input;
-        LimitedQueueExecutor2<List<ClosestInfo<S,D>>> ex;
+        LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> ex;
         private int maxDiff;
         private boolean just;
+        private boolean quick;
+
+        private int minK;
+        private int maxK;
     }
 
     private MergeableDataType<D> dataType;

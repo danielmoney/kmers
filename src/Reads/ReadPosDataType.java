@@ -43,9 +43,11 @@ public class ReadPosDataType implements DataType<ReadPos>
         return new ReadPos(Integer.valueOf(parts[0]), Short.valueOf(parts[1]));
     }
 
-    public int getID()
+    public int[] getID()
     {
-        return 1025;
+        int[] id = new int[1];
+        id[0] = 2052;
+        return id;
     }
 }
 

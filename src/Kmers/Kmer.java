@@ -2,47 +2,25 @@ package Kmers;
 
 import Exceptions.InvalidBaseException;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-public class Kmer implements Comparable<Kmer>
+public class Kmer extends Sequence
 {
     public Kmer(String s) throws InvalidBaseException
     {
-//        this(s.substring(s.lastIndexOf('-')+1).getBytes());
-        this(s.substring(0,s.indexOf('-')).getBytes());
+        this(s.substring(s.lastIndexOf('-')+1).getBytes());
+//        this(s.substring(0,s.indexOf('-')).getBytes());
     }
 
     public Kmer(byte[] chars) throws InvalidBaseException
     {
-        if (chars[0] > 4)
-        {
-            for (int i = 0; i < chars.length; i++)
-            {
-                chars[i] = Base.fromCharacterByte(chars[i]).pos();
-            }
-        }
-        else
-        {
-            for (int i = 0; i < chars.length; i++)
-            {
-                if (chars[i] > 4)
-                {
-                    throw new InvalidBaseException();
-                }
-            }
-        }
-        this.chars = chars;
-    }
-
-    private Kmer()
-    {
-
+        super(chars);
     }
 
     public Kmer(Kmer kmer)
     {
-        chars = new byte[kmer.chars.length];
-        System.arraycopy(kmer.chars,0,chars,0,kmer.chars.length);
+        super(kmer);
     }
 
     public Kmer(Kmer kmer, String s) throws InvalidBaseException
@@ -112,48 +90,10 @@ public class Kmer implements Comparable<Kmer>
     public byte[] compressedBytes()
     {
         int l = (chars.length - 1) / 4 + 1 + 1;
-        byte[] r = new byte[l];
-        int c = 1;
-        byte cb = 0;
-        int cc = 0;
-        r[0] = (byte) chars.length;
-        for (int i = 0; i < chars.length; i++)
-        {
-            cb = (byte) ((cb << 2) + chars[i]);
-            cc++;
-            if (cc == 4)
-            {
-                r[c] = cb;
-                c++;
-                cc = 0;
-                cb = 0;
-            }
-        }
-        if (cc != 0)
-        {
-            cb = (byte) (cb << ((4 - cc) * 2));
-            r[c] = cb;
-        }
-        return r;
-    }
-
-    public String toString()
-    {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < chars.length; i++)
-        {
-            try
-            {
-                sb.append(Base.fromByte(chars[i]));
-            }
-            catch (InvalidBaseException ex)
-            {
-                // SHOULD NEVER GET HERE
-            }
-        }
-
-
-        return sb.toString();
+        ByteBuffer bb = ByteBuffer.allocate(l);
+        bb.put((byte) chars.length);
+        bb.put(cBytes());
+        return bb.array();
     }
 
     public String toDBString(int length)
@@ -183,24 +123,6 @@ public class Kmer implements Comparable<Kmer>
         }
 
         return sb.toString();
-    }
-
-    public Kmer changePosition(int pos, byte val)
-    {
-            Kmer newkmer = new Kmer();
-            newkmer.chars = Arrays.copyOf(chars,chars.length);
-            newkmer.chars[pos] = val;
-            return newkmer;
-    }
-
-    public byte[] getRawBytes()
-    {
-        return Arrays.copyOf(chars,chars.length);
-    }
-
-    public int length()
-    {
-        return chars.length;
     }
 
     public Kmer getRC()
@@ -254,23 +176,6 @@ public class Kmer implements Comparable<Kmer>
         return false;
     }
 
-    public boolean equals(Object o)
-    {
-        if (o instanceof Kmer)
-        {
-            Kmer k = (Kmer) o;
-            if (k.chars.length != chars.length)
-            {
-                return false;
-            }
-            return Arrays.equals(chars, k.chars);
-        }
-        else
-        {
-            return false;
-        }
-    }
-
     public int dist(Kmer k)
     {
         int c = 0;
@@ -282,55 +187,6 @@ public class Kmer implements Comparable<Kmer>
             }
         }
         return c;
-    }
-
-    public int compareTo(Kmer k)
-    {
-//        if (k.chars.length != chars.length)
-//        {
-//            if (chars.length < k.chars.length)
-//            {
-//                return -1;
-//            }
-//            else
-//            {
-//                return 1;
-//            }
-//        }
-//
-//        for (int i = 0; i < chars.length; i++)
-//        {
-//            if (chars[i] < k.chars[i])
-//            {
-//                return -1;
-//            }
-//            if (chars[i] > k.chars[i])
-//            {
-//                return 1;
-//            }
-//        }
-//        return 0;
-
-        for (int i = 0; i < Math.min(chars.length, k.chars.length); i++)
-        {
-            if (chars[i] < k.chars[i])
-            {
-                return -1;
-            }
-            if (chars[i] > k.chars[i])
-            {
-                return 1;
-            }
-        }
-        if (chars.length < k.chars.length)
-        {
-            return -1;
-        }
-        if (chars.length > k.chars.length)
-        {
-            return 1;
-        }
-        return 0;
     }
 
     public Kmer limitTo(int length)
@@ -345,18 +201,6 @@ public class Kmer implements Comparable<Kmer>
         {
             return this;
         }
-    }
-
-    public int hashCode()
-    {
-        int h = 0;
-        for (int i = 0; i < chars.length; i++)
-        {
-            h *= 4;
-            h += chars[i];
-            h = h % MOD;
-        }
-        return h;
     }
 
     public static Kmer createUnchecked(byte[] chars)
@@ -396,24 +240,12 @@ public class Kmer implements Comparable<Kmer>
 
     public static Kmer createFromCompressed(byte[] bytes)
     {
-        int len = bytes[0];
-        byte[] b = new byte[len];
+        ByteBuffer bb = ByteBuffer.wrap(bytes);
+        int len = bb.get();
 
-        int l = (len - 1) / 4 + 1;
-        for (int i = 0; i < l; i++)
-        {
-            byte cb = bytes[i+1];
-
-            for (int j = 0; j < 4; j++)
-            {
-                int p = i*4+(3-j);
-                if (p < len)
-                {
-                    b[i * 4 + (3 - j)] = (byte) (cb & 3);
-                }
-                cb = (byte) (cb >> 2);
-            }
-        }
+        byte[] seqBytes = new byte[bytes.length - 1];
+        bb.get(seqBytes);
+        byte[] b = fromCompressed(seqBytes, len);
 
         Kmer k = null;
         try
@@ -429,7 +261,6 @@ public class Kmer implements Comparable<Kmer>
 
     private static final int MOD = 2^32-1;
 
-    protected byte[] chars;
     protected KmerStandard standard = KmerStandard.UNKNOWN;
 
     public enum KmerStandard

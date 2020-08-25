@@ -66,7 +66,12 @@ public class KmerWithDataDatatType<D> implements DataType<KmerWithData<D>>
 
     public String toString(KmerWithData<D> kwd)
     {
-        return kwd.toString();
+//        return kwd.toString();
+        StringBuilder sb = new StringBuilder();
+        sb.append(kwd.getKmer().toString());
+        sb.append("\t");
+        sb.append(dataCompressor.toString(kwd.getData()));
+        return sb.toString();
     }
 
     public KmerWithData<D> fromString(String s)
@@ -77,9 +82,14 @@ public class KmerWithDataDatatType<D> implements DataType<KmerWithData<D>>
         return new KmerWithData<>(k,d);
     }
 
-    public int getID()
+    public int[] getID()
     {
-        return 2048 + dataCompressor.getID();
+//        return 2048 + dataCompressor.getID();
+        int[] childid = dataCompressor.getID();
+        int[] id = new int[childid.length+1];
+        id[0] = 2051;
+        System.arraycopy(childid,0,id,1,childid.length);
+        return id;
     }
 
     DataType<D> dataCompressor;

@@ -1,35 +1,67 @@
 package Database;
 
+import Kmers.Kmer;
 import Kmers.KmerWithData;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class ClosestInfo<S,M>
+public class ClosestInfo<M>
 {
-    public ClosestInfo(KmerWithData<S> searchKmerm, KmerWithData<M> matchedKmer)
+    public ClosestInfo()
     {
-        this.searchKmer = searchKmer;
         matchedKmers = new TreeMap<>();
-        matchedKmers.put(matchedKmer,0);
+        mindist = 255;
+    }
+
+    public ClosestInfo(KmerWithData<M> kwd)
+    {
+        matchedKmers = new TreeMap<>();
+        matchedKmers.put(kwd.getKmer(), new CI<>(kwd,(byte) 0));
         mindist = 0;
     }
 
-    public ClosestInfo(KmerWithData<S> searchKmer, Map<KmerWithData<M>,Integer> matchedKmers, int mindist)
+    public void add(KmerWithData<M> kwd, byte dist)
     {
-        this.searchKmer = searchKmer;
-        this.matchedKmers = matchedKmers;
-        this.mindist = mindist;
+        add(new CI<>(kwd,dist));
     }
 
-    public KmerWithData<S> getSearchKmer()
+    public void add(CI<M> ci)
     {
-        return searchKmer;
+        // Need to do rc check here I think!!!
+        Kmer k = ci.kwd.getKmer();
+        Kmer rc = k.getRC();
+
+        if (matchedKmers.containsKey(rc))
+        {
+            CI<M> rcci = matchedKmers.get(rc);
+            if (ci.getDist() < rcci.getDist())
+            {
+                matchedKmers.remove(rc);
+                matchedKmers.put(k,ci);
+            }
+        }
+        else
+        {
+            matchedKmers.put(k, ci);
+        }
+        mindist = Math.min(ci.dist, mindist);
     }
 
-    public Map<KmerWithData<M>,Integer> getMatchedKmers()
+    public void addAll(ClosestInfo<M> oci)
     {
-        return matchedKmers;
+         for (CI<M> ci : oci.getMatchedKmers())
+        {
+            add(ci);
+        }
+        mindist = Math.min(mindist,oci.getMinDist());
+    }
+
+    // NOT SURE WHETHER THIS SHOULD EXIST OR WETHER WE SHOULD JUST RETURN CIs
+    public Collection<CI<M>> getMatchedKmers()
+    {
+        return matchedKmers.values();
     }
 
     public int getMinDist()
@@ -37,22 +69,38 @@ public class ClosestInfo<S,M>
         return mindist;
     }
 
-    public void merge(ClosestInfo<S,M> oci)
+    public boolean hasMatches()
     {
-        //Should probably throw an error if the search kmer is not the same
-        /**********
-         * Need to check we don't merge in a rc of something already there
-         */
-        matchedKmers.putAll(oci.getMatchedKmers());
-        mindist = Math.min(mindist,oci.getMinDist());
+        return !matchedKmers.isEmpty();
     }
 
     public String toString()
     {
-        return searchKmer.toString() + "\t" + mindist + "\t" + matchedKmers.toString();
+        return mindist + "\t" + matchedKmers.toString();
     }
 
-    private KmerWithData<S> searchKmer;
-    private Map<KmerWithData<M>,Integer> matchedKmers;
+    private Map<Kmer,CI<M>> matchedKmers;
     private int mindist;
+
+    public static class CI<D>
+    {
+        public CI(KmerWithData<D> kwd, byte dist)
+        {
+            this.kwd = kwd;
+            this.dist = dist;
+        }
+
+        public KmerWithData<D> getKWD()
+        {
+            return kwd;
+        }
+
+        public byte getDist()
+        {
+            return dist;
+        }
+
+        private KmerWithData<D> kwd;
+        private byte dist;
+    }
 }

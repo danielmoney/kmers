@@ -1,8 +1,22 @@
 import CountMaps.CountMap;
+import CountMaps.TreeCountMap;
+import Counts.CountDataType;
+import DataTypes.DataPair;
+import DataTypes.DataPairDataType;
+import DataTypes.DataType;
+import DataTypes.MergeableDataType;
+import Database.ClosestInfo;
+import Database.ClosestInfoDataType;
+import Database.DB;
+import KmerFiles.KmerFile;
 import Kmers.*;
+import Reads.ReadPos;
+import Reads.ReadPosSetDataType;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Stream;
 
 public class Testing
 {
@@ -213,7 +227,6 @@ public class Testing
 //
 //            System.out.println(c2);
 
-        System.out.println(sdf.format(new Date()));
 
 ////        }
 
@@ -261,6 +274,53 @@ public class Testing
 //        System.out.println(Arrays.toString(v));
 
 
+        /********************
+         * Testing after major rewrite
+         */
+
+
+        ReadPosSetDataType rt = new ReadPosSetDataType();
+        CountDataType dbt = new CountDataType();
+
+        ClosestInfoDataType<TreeCountMap<Integer>> cit = new ClosestInfoDataType<>(dbt);
+
+        DataPairDataType<Set<ReadPos>, ClosestInfo<TreeCountMap<Integer>>> rest = new DataPairDataType<>(rt,cit);
+
+        KmerWithDataDatatType<DataPair<Set<ReadPos>, ClosestInfo<TreeCountMap<Integer>>>> kwdt = new KmerWithDataDatatType<>(rest);
+
+
+        KmerFile<TreeCountMap<Integer>> dbf = new KmerFile<>(new File("medium/norway_cr.db.gz"), dbt);
+        DB<TreeCountMap<Integer>> db = new DB<>(dbf);
+
+        KmerFile<Set<ReadPos>> rf = new KmerFile<>(new File("reads/test.db.gz"), rt);
+
+        /*** Exact ***/
+        int diff = 0;
+        int min = 32;
+
+        /*** Inexact ***/
+//        int diff = 1;
+//        int min = 32;
+
+        /*** Exact but slow code ***/
+//        int diff = 0;
+//        int min = 24;
+
+//        KmerStream<DataPair<Set<ReadPos>, ClosestInfo<TreeCountMap<Integer>>>> resultStream =
+//                db.getNearestKmers(rf.restrictedKmers(0,4096,min,32),diff,true);
+////        resultStream.filter(kwd -> kwd.getData().getB().hasMatches()).forEach(kwd ->
+////                System.out.println(kwdt.toString(kwd)));
+//        System.out.println(resultStream.filter(kwd -> kwd.getData().getB().hasMatches()).count());
+//        resultStream.close();
+//
+//        System.out.println(sdf.format(new Date()));
+
+
+        KmerWithDataDatatType<Set<ReadPos>> rpdt = new KmerWithDataDatatType<>(rt);
+        rf.allKmers().limit(100).forEach(kwd -> System.out.println(rpdt.toString(kwd)));
+
+//        KmerWithDataDatatType<TreeCountMap<Integer>> cidt = new KmerWithDataDatatType<>(dbt);
+//        db.allKmers().limit(100).forEach(kwd -> System.out.println(cidt.toString(kwd)));
     }
 
     private static void printkwd(KmerWithData<CountMap<Integer>> kwd)

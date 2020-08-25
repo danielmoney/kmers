@@ -3,6 +3,7 @@ package KmerFiles;
 import Compression.Compressor;
 import Compression.IntCompressor;
 import DataTypes.MergeableDataType;
+import Exceptions.UnexpectedDataTypeException;
 import IndexedFiles.IndexedInputFile;
 import IndexedFiles.StandardIndexedInputFile;
 import IndexedFiles.ZippedIndexedInputFile;
@@ -15,6 +16,7 @@ import Zip.ZipOrNot;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Spliterator;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -28,9 +30,9 @@ public class KmerFile<D>
         this.file = getIndexedInputFile(file);
         this.dataType = dataType;
         this.meta = getMetaData(file);
-        if (meta.dataID != dataType.getID())
+        if (!Arrays.equals(meta.dataID,dataType.getID()))
         {
-            //throw an error
+            throw new UnexpectedDataTypeException(file);
         }
     }
 
@@ -133,9 +135,9 @@ public class KmerFile<D>
     private MergeableDataType<D> dataType;
     private MetaData meta;
 
-    private static class MetaData
+    public static class MetaData
     {
-        public MetaData(int minLength, int maxLength, int keyLength, int dataID, boolean rc)
+        public MetaData(int minLength, int maxLength, int keyLength, int[] dataID, boolean rc)
         {
             this.minLength = minLength;
             this.maxLength = maxLength;
@@ -147,7 +149,7 @@ public class KmerFile<D>
         public int minLength;
         public int maxLength;
         public int keyLength;
-        public int dataID;
+        public int[] dataID;
         public boolean rc;
     }
 
@@ -240,25 +242,25 @@ public class KmerFile<D>
         }
     }
 
-    private static <D> MetaData getMetaData(File f) throws IOException
+    public static <D> MetaData getMetaData(File f) throws IOException
     {
         IndexedInputFile<Integer> file = getIndexedInputFile(f);
-        byte[] metadata = file.data(-1);
+        byte[] metadata = file.data(new Integer(-1));
         if (file.isHumanReadable())
         {
-            String meta = new String(file.data(-1));
+            String meta = new String(metadata);
             String[] parts = meta.split("\n");
             return new MetaData(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]),
-                    Integer.parseInt(parts[2]), Integer.parseInt(parts[3]), parts[4].equals("1"));
+                    Integer.parseInt(parts[2]), Compressor.getID(parts[3]), parts[4].equals("1"));
         }
         else
         {
-            ByteBuffer meta = ByteBuffer.wrap(file.data(-1));
-            return new MetaData(meta.get(), meta.get(), meta.get(), meta.getInt(), meta.get() == (byte) 1);
+            ByteBuffer meta = ByteBuffer.wrap(metadata);
+            return new MetaData(meta.get(), meta.get(), meta.get(), Compressor.getID(meta), meta.get() == (byte) 1);
         }
     }
 
-    public static int getDataID(File file) throws IOException
+    public static int[] getDataID(File file) throws IOException
     {
         return getMetaData(file).dataID;
     }

@@ -34,12 +34,12 @@ public class KmersFromFile<D>
     private int maxK;
     private BiFunction<String,Short,D> mapper;
 
-    public static KmersFromFile<Integer> getFQtoRefDBInstance(int minK, int maxK)
+    public static KmersFromFile<Integer> getFAtoRefDBInstance(int minK, int maxK)
     {
         return new KmersFromFile<>(KmersFromFileStateChanger.getFAinstance(),minK,maxK,(s, i) -> Integer.parseInt(s));
     }
 
-    public static KmersFromFile<ReadPos> getFAtoReadDBInstance(int minK, int maxK, ReadIDMapping readMap)
+    public static KmersFromFile<ReadPos> getFQtoReadDBInstance(int minK, int maxK, ReadIDMapping readMap)
     {
         return new KmersFromFile<>(KmersFromFileStateChanger.getFQinstance(), minK, maxK, (s,i) -> new ReadPos(readMap.geNext(s), i));
     }
@@ -98,7 +98,6 @@ public class KmersFromFile<D>
                         int c = in.read();
                         if (c == -1)
                         {
-//                            throw new EOFException();
                             ending = true;
                             oldid = id.toString();
                             curK = Math.min(pos-1,maxK - 1);

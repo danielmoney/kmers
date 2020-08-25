@@ -11,42 +11,42 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.function.BiConsumer;
 
-public class ClosestInfo2DataType<D> implements MergeableDataType<ClosestInfo2<D>>
+public class ClosestInfoDataType<D> implements MergeableDataType<ClosestInfo<D>>
 {
-    public ClosestInfo2DataType(DataType<D> dCompressor)
+    public ClosestInfoDataType(DataType<D> dCompressor)
     {
         kCompressor = new KmerWithDataDatatType<>(dCompressor);
     }
 
-    public ClosestInfo2<D> decompress(ByteBuffer bb)
+    public ClosestInfo<D> decompress(ByteBuffer bb)
     {
-        ClosestInfo2<D> closest = new ClosestInfo2<>();
+        ClosestInfo<D> closest = new ClosestInfo<>();
 
         int num = bb.getInt();
 
         for (int i = 0; i < num; i++)
         {
-            closest.add(new ClosestInfo2.CI<>(kCompressor.decompress(bb), bb.get()));
+            closest.add(new ClosestInfo.CI<>(kCompressor.decompress(bb), bb.get()));
         }
 
         return closest;
     }
 
-    public ClosestInfo2<D> decompress(DataInput input) throws IOException
+    public ClosestInfo<D> decompress(DataInput input) throws IOException
     {
-        ClosestInfo2<D> closest = new ClosestInfo2<>();
+        ClosestInfo<D> closest = new ClosestInfo<>();
 
         int num = input.readInt();
 
         for (int i = 0; i < num; i++)
         {
-            closest.add(new ClosestInfo2.CI<>(kCompressor.decompress(input),input.readByte()));
+            closest.add(new ClosestInfo.CI<>(kCompressor.decompress(input),input.readByte()));
         }
 
         return closest;
     }
 
-    public byte[] compress(ClosestInfo2<D> ci)
+    public byte[] compress(ClosestInfo<D> ci)
     {
         ByteBuffer mbb = ByteBuffer.allocate(4);
         mbb.putInt(ci.getMatchedKmers().size());
@@ -54,7 +54,7 @@ public class ClosestInfo2DataType<D> implements MergeableDataType<ClosestInfo2<D
         int c = 0;
         int s = 4;
         byte[][] temp = new byte[ci.getMatchedKmers().size()][];
-        for (ClosestInfo2.CI<D> cc: ci.getMatchedKmers())
+        for (ClosestInfo.CI<D> cc: ci.getMatchedKmers())
         {
             byte[] k = kCompressor.compress(cc.getKWD());
             byte[] t = new byte[temp.length+1];
@@ -75,12 +75,12 @@ public class ClosestInfo2DataType<D> implements MergeableDataType<ClosestInfo2<D
         return bb.array();
     }
 
-    public String toString(ClosestInfo2<D> ci)
+    public String toString(ClosestInfo<D> ci)
     {
         StringBuilder sb = new StringBuilder();
 
         sb.append(ci.getMinDist());
-        for (ClosestInfo2.CI<D> c: ci.getMatchedKmers())
+        for (ClosestInfo.CI<D> c: ci.getMatchedKmers())
         {
             sb.append(" | ");
             sb.append(c.getDist());
@@ -90,24 +90,29 @@ public class ClosestInfo2DataType<D> implements MergeableDataType<ClosestInfo2<D
         return sb.toString();
     }
 
-    public ClosestInfo2<D> fromString(String s)
+    public ClosestInfo<D> fromString(String s)
     {
         String[] parts = s.split(" | ");
-        ClosestInfo2<D> closest = new ClosestInfo2<>();
+        ClosestInfo<D> closest = new ClosestInfo<>();
         for (int i = 1; i < parts.length; i++)
         {
             String[] p2 = s.split("\t",2);
-            closest.add(new ClosestInfo2.CI<D>(kCompressor.fromString(p2[1]), Byte.parseByte(p2[0])));
+            closest.add(new ClosestInfo.CI<D>(kCompressor.fromString(p2[1]), Byte.parseByte(p2[0])));
         }
         return closest;
     }
 
-    public int getID()
+    public int[] getID()
     {
-        return 8192 + kCompressor.getID();
+        //return 8192 + kCompressor.getID();
+        int[] childid = kCompressor.getID();
+        int[] id = new int[childid.length+1];
+        id[0] = 2049;
+        System.arraycopy(childid,0,id,1,childid.length);
+        return id;
     }
 
-    public BiConsumer<ClosestInfo2<D>, ClosestInfo2<D>> getMerger()
+    public BiConsumer<ClosestInfo<D>, ClosestInfo<D>> getMerger()
     {
         return (ci1,ci2) -> ci1.addAll(ci2);
     }

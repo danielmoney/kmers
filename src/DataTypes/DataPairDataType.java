@@ -48,9 +48,15 @@ public class DataPairDataType<A,B> implements DataType<DataPair<A,B>>
         return new DataPair<>(aDataType.fromString(parts[0]), bDataType.fromString(parts[1]));
     }
 
-    public int getID()
+    public int[] getID()
     {
-        return 1234;
+        int[] aID = aDataType.getID();
+        int[] bID = bDataType.getID();
+        int[] id = new int[aID.length + bID.length + 1];
+        id[0] = 2050;
+        System.arraycopy(aID,0,id,1,aID.length);
+        System.arraycopy(bID,0,id,aID.length+1,bID.length);
+        return id;
     }
 
     private DataType<A> aDataType;

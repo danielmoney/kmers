@@ -112,9 +112,9 @@ public class Root<D>
         }
     }
 
-    <S> ClosestInfo<S,D> closestKmers(KmerWithData<S> searchKmer, int maxdiff, boolean just)
+    ClosestInfo<D> closestKmers(KmerWithData<?> searchKmer, int maxdiff, boolean just)
     {
-        Map<KmerWithData<D>,Integer> best = new HashMap<>();
+        ClosestInfo<D> best = new ClosestInfo<>();
         int testDist = maxdiff;
         int bestDist = maxdiff;
 
@@ -144,13 +144,13 @@ public class Root<D>
                     if ((curdist < testDist) && just)
                     {
                         testDist = curdist;
-                        best = new HashMap<>();
+                        best = new ClosestInfo<>();
                     }
                     bestDist = Math.min(curdist,bestDist);
                     /************
                      * Need to check it doesn't already contain the rc kmer
                      */
-                    best.put(new KmerWithData<D>(Kmer.createUnchecked(newseq), cn.n.data),curdist);
+                    best.add(new ClosestInfo.CI<>(new KmerWithData<D>(Kmer.createUnchecked(newseq), cn.n.data),(byte) curdist));
 //                    System.out.println(best + "\t" + testDist);
                 }
                 else
@@ -166,7 +166,7 @@ public class Root<D>
             }
         }
 
-        return new ClosestInfo<S,D>(searchKmer,best,bestDist);
+        return best;
     }
 
     private class ClosestNode<D>

@@ -1,6 +1,7 @@
 package Counts;
 
-import Compression.Compressor;
+import CountMaps.TreeCountMapCompressor;
+import Compression.IntCompressor;
 import CountMaps.TreeCountMap;
 import DataTypes.MergeableDataType;
 
@@ -10,6 +11,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+//Does not use TreeCountMapCompressor as it stores counts as longs and we don't need to
 
 public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
 {
@@ -45,7 +48,7 @@ public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
             {
                 c = 256+c;
             }
-            map.put(id,c);
+            map.put(id,(long) c);
         }
 
         return map;
@@ -81,7 +84,14 @@ public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
 
     public TreeCountMap<Integer> fromString(String s)
     {
-        return null;
+        TreeCountMap<Integer> map = new TreeCountMap<>();
+        String parts[] = s.split(" ");
+        for (String p: parts)
+        {
+            String[] parts2 = p.split(":");
+            map.put(Integer.parseInt(parts2[0]),Long.parseLong(parts2[1]));
+        }
+        return map;
     }
 
     public String toString(TreeCountMap<Integer> map)
@@ -90,9 +100,12 @@ public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
                                 .collect(Collectors.joining(" "));
     }
 
-    public int getID()
+    public int[] getID()
     {
-        return 1024;
+//        return 1024;
+        int[] id = new int[1];
+        id[0] = 2048;
+        return id;
     }
 
     public BiConsumer<TreeCountMap<Integer>, TreeCountMap<Integer>> getMerger()
