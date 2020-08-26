@@ -21,7 +21,6 @@ import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import java.util.zip.GZIPOutputStream;
 
 public class SeqToTaxID
 {
@@ -72,15 +71,15 @@ public class SeqToTaxID
 
 
         makeDataTemp(dataFile, tmpDataFile);
-//        makeMapTemp(mapFile, tmpMapFile, taxpos, idpos);
-//        createMapped(tmpDataFile,tmpMapFile,outFile,z);
+        makeMapTemp(mapFile, tmpMapFile, taxpos, idpos);
+        createMapped(tmpDataFile,tmpMapFile,outFile,z,commands.hasOption('h'));
 
 
         System.out.println(sdf.format(new Date()));
     }
 
 
-    public static void createMapped(File tmpDataFile, File tmpMapFile, File outFile, int z) throws IOException, InterruptedException
+    public static void createMapped(File tmpDataFile, File tmpMapFile, File outFile, int z, boolean hr) throws IOException, InterruptedException
     {
         IndexedInputFile<String> in2Data = new ZippedIndexedInputFile<>(tmpDataFile, new StringCompressor());
         IndexedInputFile<String> in2Map = new ZippedIndexedInputFile<>(tmpMapFile, new StringCompressor());
@@ -89,15 +88,16 @@ public class SeqToTaxID
 //        if (z != -1)
 //        {
 //            BlockedZipOutputFile out = new BlockedZipOutputFile(outFile, 5);
-//
-//            LimitedQueueExecutor<Void> exec = new LimitedQueueExecutor<>();
-//
-//            for (String index : in2Data.indexes())
-//            {
-//                exec.submit(new CreateMapped(in2Data, in2Map, out, index));
-//            }
-//            exec.shutdown();
-//            out.close();
+            IndexedOutputFile<String> out = new ZippedIndexedOutputFile<>(outFile, new StringCompressor(), hr, z);
+
+            LimitedQueueExecutor<Void> exec = new LimitedQueueExecutor<>();
+
+            for (String index : in2Data.indexes())
+            {
+                exec.submit(new CreateMapped(in2Data, in2Map, out, index, hr));
+            }
+            exec.shutdown();
+            out.close();
 //        }
 //        else
 //        {
@@ -127,56 +127,81 @@ public class SeqToTaxID
         tmpMapFile.delete();
     }
 
-//    private static class CreateMapped implements Callable<Void>
-//    {
-//        public CreateMapped(IndexedInputFile<String> in2Data, IndexedInputFile<String> in2Map,
+    private static class CreateMapped implements Callable<Void>
+    {
+        public CreateMapped(IndexedInputFile<String> in2Data, IndexedInputFile<String> in2Map,
 //                            BlockedZipOutputFile out, String index)
-//        {
-//            this.in2Data = in2Data;
-//            this.in2Map = in2Map;
-//            this.out = out;
-//            this.index = index;
-//        }
-//
-//        public Void call()
-//        {
-//            try
-//            {
-//                Map<String, String> map = new HashMap<>();
-//                in2Map.lines(index).forEach(l -> {
-//                    String[] parts = l.split("\t");
-//                    map.put(parts[0], parts[1]);
-//                });
-//
-//                LinkedList<byte[]> bytes = new LinkedList<>();
-//
+                IndexedOutputFile<String> out, String index, boolean hr)
+        {
+            this.in2Data = in2Data;
+            this.in2Map = in2Map;
+            this.out = out;
+            this.index = index;
+            this.hr = hr;
+        }
+
+        public Void call()
+        {
+            try
+            {
+                Map<String, Integer> map = new HashMap<>();
+                in2Map.lines(index).forEach(l -> {
+                    String[] parts = l.split("\t");
+                    map.put(parts[0], Integer.parseInt(parts[1]));
+                });
+
+                LinkedList<byte[]> bytes = new LinkedList<>();
+
 //                int size = in2Data.lines(index).mapToInt(l -> {
 //                    String[] parts = l.split("\t", 2);
 //                    byte[] b = (map.get(parts[0]) + "\t" + parts[1] + "\n").getBytes();
 //                    bytes.add(b);
 //                    return b.length;
 //                }).sum();
-//
-//                ByteBuffer bb = ByteBuffer.allocate(size);
-//                for (byte[] b : bytes)
-//                {
-//                    bb.put(b);
-//                }
-//                out.writeBlock(bb.array());
-//            }
-//            catch (IOException ex)
-//            {
-//                throw new UncheckedIOException(ex);
-//            }
-//
-//            return null;
-//        }
-//
-//        private IndexedInputFile<String> in2Data;
-//        private IndexedInputFile<String> in2Map;
+
+                ByteBuffer input = ByteBuffer.wrap(in2Data.data(index));
+                int size = 0;
+                while (input.hasRemaining())
+                {
+                    DataPair<String,Sequence> dp = stringPairDataType.decompress(input);
+                    //byte[] b = (map.get(dp.getA()) + "\t" + dp.getB().toString() + "\n").getBytes();
+                    DataPair<Integer,Sequence> newdp = new DataPair<>(map.get(dp.getA()),dp.getB());
+                    byte[] b;
+                    if (hr)
+                    {
+                        b = (integerPairDataType.toString(newdp) + "\n").getBytes();
+                    }
+                    else
+                    {
+                        b = integerPairDataType.compress(newdp);
+                    }
+                    bytes.add(b);
+                    size += b.length;
+                }
+
+                ByteBuffer bb = ByteBuffer.allocate(size);
+                for (byte[] b : bytes)
+                {
+                    bb.put(b);
+                }
+                //out.writeBlock(bb.array());
+                out.write(bb.array(),index);
+            }
+            catch (IOException ex)
+            {
+                throw new UncheckedIOException(ex);
+            }
+
+            return null;
+        }
+
+        private boolean hr;
+        private IndexedInputFile<String> in2Data;
+        private IndexedInputFile<String> in2Map;
 //        private BlockedZipOutputFile out;
-//        private String index;
-//    }
+        private IndexedOutputFile<String> out;
+        private String index;
+    }
 
     public static void makeMapTemp(File mapFile, File tmpMapFile, int taxpos, int idpos) throws Exception
     {
@@ -222,7 +247,7 @@ public class SeqToTaxID
         String index = data.getA().substring(data.getA().length()-2);
         try
         {
-            cache.add(index, pairDataType.compress(data));
+            cache.add(index, stringPairDataType.compress(data));
         }
         catch (IOException e)
         {
@@ -230,73 +255,8 @@ public class SeqToTaxID
         }
     }
 
-    private static DataPairDataType<String,Sequence> pairDataType = new DataPairDataType<>(new StringDataType(), new SequenceDataType());
-
-//    public static void makeDataTemp(File dataFile, File tmpDataFile) throws Exception
-//    {
-//        BufferedReader inData = ZipOrNot.getBufferedReader(dataFile);
-//        IndexedOutputFileCache<String> tmpData = new ComparableIndexedOutputFileCache<>(1000,
-//                new ZippedIndexedOutputFile<>(tmpDataFile, new StringCompressor(), true, 9));
-//
-//        boolean skip = true;
-//        boolean first = false;
-//        String line = inData.readLine();
-//        String key = "";
-//        String id = "";
-//
-//        while (line != null)
-//        {
-//            if (line.startsWith(">"))
-//            {
-//                if (!skip)
-//                {
-//                    tmpData.add(key,"\n");
-//                }
-//
-//                try
-//                {
-//                    int stop = line.indexOf('.');
-//                    int space = line.indexOf(' ');
-//                    if ((space == -1) || (stop < space))
-//                    {
-//                        id = line.substring(1, stop);
-//                        key = id.substring(id.length() - 2);
-//                        skip = false;
-//                        first = true;
-//                    }
-//                    else
-//                    {
-//                        skip = true;
-//                    }
-//                }
-//                catch (StringIndexOutOfBoundsException | NumberFormatException ex)
-//                {
-//                    skip = true;
-//                }
-//            }
-//            else
-//            {
-//                if (!skip)
-//                {
-//                    if (first)
-//                    {
-//                        tmpData.add(key, id + "\t");
-//                        first = false;
-//                    }
-//                    tmpData.add(key, line.trim());
-//                }
-//            }
-//            line = inData.readLine();
-//        }
-//
-//        if (!skip)
-//        {
-//            tmpData.add(key, "\n");
-//        }
-//
-//        inData.close();
-//        tmpData.close();
-//    }
+    private static DataPairDataType<String,Sequence> stringPairDataType = new DataPairDataType<>(new StringDataType(), new SequenceDataType());
+    private static DataPairDataType<Integer,Sequence> integerPairDataType = new DataPairDataType<>(new IntDataType(), new SequenceDataType());
 
     private static class FASequenceSpliterator implements Spliterator<DataPair<String,Sequence>>
     {

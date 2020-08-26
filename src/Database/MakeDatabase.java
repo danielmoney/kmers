@@ -1,16 +1,16 @@
 package Database;
 
 import Compression.IntCompressor;
+import Compression.StringCompressor;
 import Concurrent.LimitedQueueExecutor;
 import CountMaps.TreeCountMap;
 import DataTypes.DataCollector;
-import IndexedFiles.IndexedOutputFile;
-import IndexedFiles.StandardIndexedOutputFile;
-import IndexedFiles.ZippedIndexedOutputFile;
+import DataTypes.DataPair;
+import DataTypes.DataPairDataType;
+import DataTypes.IntDataType;
+import IndexedFiles.*;
 import KmerFiles.FileCreator;
-import Kmers.Dust;
-import Kmers.KmerStream;
-import Kmers.RunOfSame;
+import Kmers.*;
 import OtherFiles.KmersFromFile;
 import OtherFiles.ReadIDMapping;
 import Reads.ReadPos;
@@ -18,11 +18,13 @@ import Zip.ZipOrNot;
 import org.apache.commons.cli.*;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import java.util.zip.GZIPOutputStream;
 
 public class MakeDatabase
@@ -51,6 +53,7 @@ public class MakeDatabase
         OptionGroup dbtype = new OptionGroup();
         dbtype.addOption(Option.builder("a").desc("Input is in FATSA format").build());
         dbtype.addOption(Option.builder("q").desc("Input is in FASTQ format").build());
+        dbtype.addOption(Option.builder("p").desc("Input is in preprocessed format").build());
         dbtype.isRequired();
         options.addOptionGroup(dbtype);
 
@@ -86,7 +89,9 @@ public class MakeDatabase
 
             KmersFromFile<Integer> kf = KmersFromFile.getFAtoRefDBInstance(j, k);
 
-            filterAndCreate(kf, dbc, commands);
+            BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
+
+            filterAndCreate(kf.streamFromFile(in), dbc, commands);
         }
         if (commands.hasOption('q'))
         {
@@ -99,17 +104,27 @@ public class MakeDatabase
 
             KmersFromFile<ReadPos> kf = KmersFromFile.getFQtoReadDBInstance(j, k, map);
 
-            filterAndCreate(kf, dbc, commands);
+            BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
+
+            filterAndCreate(kf.streamFromFile(in), dbc, commands);
+        }
+        if (commands.hasOption('p'))
+        {
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
+
+            IndexedInputFile in = new ZippedIndexedInputFile(new File(commands.getOptionValue('i')), new StringCompressor());
+            KmerStream<Integer> kstream = new KmerStream(StreamSupport.stream(new PreProcessedSpliterator(in, j, k), false),j,k,false);
+
+//            kstream.limit(100).forEach(kwd -> System.out.println(kwd));
+            filterAndCreate(kstream, dbc, commands);
         }
 
         System.out.println(sdf.format(new Date()));
     }
 
-    private static <D> void filterAndCreate(KmersFromFile<D> kf, FileCreator<D,?> dbc, CommandLine commands) throws Exception
+    private static <D> void filterAndCreate(KmerStream<D> kstream, FileCreator<D,?> dbc, CommandLine commands) throws Exception
     {
         BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
-
-        KmerStream<D> kstream = kf.streamFromFile(in);
 
         if (commands.hasOption('u'))
         {
@@ -144,6 +159,115 @@ public class MakeDatabase
         dbc.create(out, commands.hasOption('h'));
 
         dbc.close();
+    }
+
+    private static class PreProcessedSpliterator implements Spliterator<KmerWithData<Integer>>
+    {
+        private PreProcessedSpliterator(IndexedInputFile<String> in, int minK, int maxK)
+        {
+            this.in = in;
+            indexIterator = in.indexes().iterator();
+            hr = in.isHumanReadable();
+            if (hr)
+            {
+                lines = Collections.emptyIterator();
+            }
+            else
+            {
+                bb = ByteBuffer.allocate(0);
+            }
+            this.minK = minK;
+            this.maxK = maxK;
+        }
+
+        public boolean tryAdvance(Consumer<? super KmerWithData<Integer>> consumer)
+        {
+            while ((curseq == null) || (curseq.length() < minK))
+            {
+                DataPair<Integer, Sequence> dp;
+                if (hr)
+                {
+                    if (!lines.hasNext())
+                    {
+                        if (indexIterator.hasNext())
+                        {
+                            lines = in.lines(indexIterator.next()).iterator();
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                    dp = integerPairDataType.fromString(lines.next());
+                }
+                else
+                {
+                    if (!bb.hasRemaining())
+                    {
+                        if (indexIterator.hasNext())
+                        {
+                            bb = ByteBuffer.wrap(in.data(indexIterator.next()));
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                    dp = integerPairDataType.decompress(bb);
+                }
+                curid = dp.getA();
+                curseq = dp.getB();
+                curstart = 0;
+                processed = false;
+            }
+
+            int end = Math.min(curstart+maxK,curseq.length());
+            int l = end - curstart;
+            byte[] kbytes = new byte[l];
+            System.arraycopy(curseq.getRawBytes(),curstart,kbytes,0,l);
+            curstart++;
+            if ((curseq.length() - curstart) < minK)
+            {
+                curseq = null;
+            }
+            consumer.accept(new KmerWithData<>(Kmer.createUnchecked(kbytes), curid));
+            return true;
+        }
+
+        @Override
+        public long estimateSize()
+        {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public Spliterator<KmerWithData<Integer>> trySplit()
+        {
+            return null;
+        }
+
+        @Override
+        public int characteristics()
+        {
+            return Spliterator.IMMUTABLE | Spliterator.ORDERED;
+        }
+
+        private boolean processed;
+        private int curstart;
+        private Sequence curseq;
+        private Integer curid;
+
+        private boolean hr;
+
+        private ByteBuffer bb;
+        private Iterator<String> lines;
+
+        private IndexedInputFile<String> in;
+        private Iterator<String> indexIterator;
+        private DataPairDataType<Integer,Sequence> integerPairDataType = new DataPairDataType<>(new IntDataType(), new SequenceDataType());
+
+        private int minK;
+        private int maxK;
     }
 
     private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss\t");
