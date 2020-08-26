@@ -12,12 +12,13 @@ import Kmers.*;
 import Zip.BlockedZipOutputFile;
 import Zip.ZipOrNot;
 import org.apache.commons.cli.*;
+import sun.awt.image.ImageWatched;
 
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.Callable;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -41,6 +42,10 @@ public class SeqToTaxID
 
         options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
 
+        options.addOption(Option.builder("t").hasArg().desc("Accession ID column (this should include version where applicable").build());
+        options.addOption(Option.builder("T").hasArg().desc("Taxonomy ID column").build());
+        options.addOption(Option.builder("I").hasArg().desc("Number of header lines to ignore").build());
+
         CommandLineParser parser = new DefaultParser();
 
         //Obviously neeed to do something better here than just throw the ParseException!
@@ -53,11 +58,21 @@ public class SeqToTaxID
 
         File dataFile = new File(commands.getOptionValue('i'));
         File tmpDataFile = new File(commands.getOptionValue('i') + ".tmp");
-        File mapFile = new File(commands.getOptionValue('m'));
-        File tmpMapFile = new File(commands.getOptionValue('m') + ".tmp");
+//        File mapFile = new File(commands.getOptionValue('m'));
+        List<File> mapFiles = new LinkedList<>();
+        for (String s: commands.getOptionValues('m'))
+        {
+            mapFiles.add(new File(s));
+        }
+        File tmpMapFile = new File("map.tmp");
         File outFile = new File(commands.getOptionValue('o'));
-        int taxpos = 2;
-        int idpos = 1;
+
+        int taxpos = Integer.parseInt(commands.getOptionValue('T',"3")) - 1;
+        int idpos = Integer.parseInt(commands.getOptionValue('A',"2")) - 1;
+        int headerLines = Integer.parseInt(commands.getOptionValue('I', "1"));
+
+        int keylength = Integer.parseInt(commands.getOptionValue('l',"2"));
+        int cachesize = Integer.parseInt(commands.getOptionValue('c',"10000"));
 
         int z;
         if (commands.hasOption('Z'))
@@ -69,11 +84,18 @@ public class SeqToTaxID
             z = Integer.parseInt(commands.getOptionValue('z',"5"));
         }
 
+        ExecutorService ex = Executors.newFixedThreadPool(2);
 
-        makeDataTemp(dataFile, tmpDataFile);
-        makeMapTemp(mapFile, tmpMapFile, taxpos, idpos);
+//        makeDataTemp(dataFile, tmpDataFile, keylength, cachesize);
+//        makeMapTemp(mapFiles, tmpMapFile, taxpos, idpos, headerLines, keylength,cachesize);
+
+        ex.submit(new MakeDataTemp(dataFile, tmpDataFile, keylength, cachesize));
+        ex.submit(new MakeMapTemp(mapFiles, tmpMapFile, taxpos, idpos, headerLines, keylength,cachesize));
+
+        ex.shutdown();
+        ex.awaitTermination(14, TimeUnit.DAYS);
+
         createMapped(tmpDataFile,tmpMapFile,outFile,z,commands.hasOption('h'));
-
 
         System.out.println(sdf.format(new Date()));
     }
@@ -88,49 +110,36 @@ public class SeqToTaxID
 //        if (z != -1)
 //        {
 //            BlockedZipOutputFile out = new BlockedZipOutputFile(outFile, 5);
-            IndexedOutputFile<String> out = new ZippedIndexedOutputFile<>(outFile, new StringCompressor(), hr, z);
+        IndexedOutputFile<String> out;
+        if (z == -1)
+        {
+            out = new StandardIndexedOutputFile<>(outFile, new StringCompressor(), hr);
+        }
+        else
+        {
+            out = new ZippedIndexedOutputFile<>(outFile, new StringCompressor(), hr, z);
+        }
 
-            LimitedQueueExecutor<Void> exec = new LimitedQueueExecutor<>();
+        LimitedQueueExecutor<Void> exec = new LimitedQueueExecutor<>();
 
-            for (String index : in2Data.indexes())
-            {
-                exec.submit(new CreateMapped(in2Data, in2Map, out, index, hr));
-            }
-            exec.shutdown();
-            out.close();
-//        }
-//        else
-//        {
-//            //No point in doing multithreaded stuff if not zipping as limiting factor is likely to be IO.
-//            PrintWriter out = new PrintWriter(new GZIPOutputStream(new BufferedOutputStream(
-//                new FileOutputStream(outFile))));
-//            for (String index : in2Data.indexes())
-//            {
-//                Map<String,String> map = new HashMap<>();
-//                in2Map.lines(index).forEach(l -> {
-//                    String[] parts = l.split("\t");
-//                    map.put(parts[0], parts[1]);
-//                });
-//
-//                in2Data.lines(index).forEach(l -> {
-//                    String[] parts = l.split("\t",2);
-//                    out.println(map.get(parts[0]) + "\t" + parts[1]);
-//                });
-//            }
-//            out.close();
-//        }
+        for (String index : in2Data.indexes())
+        {
+            exec.submit(new CreateMapped(in2Data, in2Map, out, index, hr));
+        }
+        exec.shutdown();
+        out.close();
+
 
         in2Data.close();
         in2Map.close();
 
-//        tmpDataFile.delete();
+        tmpDataFile.delete();
         tmpMapFile.delete();
     }
 
     private static class CreateMapped implements Callable<Void>
     {
         public CreateMapped(IndexedInputFile<String> in2Data, IndexedInputFile<String> in2Map,
-//                            BlockedZipOutputFile out, String index)
                 IndexedOutputFile<String> out, String index, boolean hr)
         {
             this.in2Data = in2Data;
@@ -152,19 +161,11 @@ public class SeqToTaxID
 
                 LinkedList<byte[]> bytes = new LinkedList<>();
 
-//                int size = in2Data.lines(index).mapToInt(l -> {
-//                    String[] parts = l.split("\t", 2);
-//                    byte[] b = (map.get(parts[0]) + "\t" + parts[1] + "\n").getBytes();
-//                    bytes.add(b);
-//                    return b.length;
-//                }).sum();
-
                 ByteBuffer input = ByteBuffer.wrap(in2Data.data(index));
                 int size = 0;
                 while (input.hasRemaining())
                 {
                     DataPair<String,Sequence> dp = stringPairDataType.decompress(input);
-                    //byte[] b = (map.get(dp.getA()) + "\t" + dp.getB().toString() + "\n").getBytes();
                     DataPair<Integer,Sequence> newdp = new DataPair<>(map.get(dp.getA()),dp.getB());
                     byte[] b;
                     if (hr)
@@ -184,7 +185,6 @@ public class SeqToTaxID
                 {
                     bb.put(b);
                 }
-                //out.writeBlock(bb.array());
                 out.write(bb.array(),index);
             }
             catch (IOException ex)
@@ -198,53 +198,100 @@ public class SeqToTaxID
         private boolean hr;
         private IndexedInputFile<String> in2Data;
         private IndexedInputFile<String> in2Map;
-//        private BlockedZipOutputFile out;
         private IndexedOutputFile<String> out;
         private String index;
     }
 
-    public static void makeMapTemp(File mapFile, File tmpMapFile, int taxpos, int idpos) throws Exception
+    private static class MakeMapTemp implements Callable<Void>
     {
-        BufferedReader inMap = ZipOrNot.getBufferedReader(mapFile);
-        IndexedOutputFileCache<String> tmpMap = new ComparableIndexedOutputFileCache<>(1000,
-                new ZippedIndexedOutputFile<>(tmpMapFile, new StringCompressor(), true, 9));
-
-        // Well that's annoying recent map file Yucheng gave me doesn't seem to have a header line whereas others do...
-//        inMap.readLine();
-        String line = inMap.readLine();
-
-        while (line != null)
+        private MakeMapTemp(List<File> mapFiles, File tmpMapFile, int taxpos, int idpos, int headerLines,
+                            int keylength, int cacheSize)
         {
-            String[] parts = line.split("\t");
-
-            int stop = parts[idpos].indexOf('.');
-            String id = parts[idpos].substring(0, stop);
-            String key = id.substring(parts[idpos].length()-4);
-
-            tmpMap.add(key, id + "\t" + parts[taxpos] + "\n");
-
-            line = inMap.readLine();
+            this.mapFiles = mapFiles;
+            this.tmpMapFile = tmpMapFile;
+            this.taxpos = taxpos;
+            this.idpos = idpos;
+            this.headerLines = headerLines;
+            this.keylength = keylength;
+            this.cacheSize = cacheSize;
         }
 
-        inMap.close();
-        tmpMap.close();
+        public Void call() throws Exception
+        {
+            IndexedOutputFileCache<String> tmpMap = new ComparableIndexedOutputFileCache<>(cacheSize,
+                    new ZippedIndexedOutputFile<>(tmpMapFile, new StringCompressor(), true, 9));
+
+            for (File mapFile : mapFiles)
+            {
+                BufferedReader inMap = ZipOrNot.getBufferedReader(mapFile);
+                // Well that's annoying recent map file Yucheng gave me doesn't seem to have a header line whereas others do...
+                for (int i = 0; i < headerLines; i++)
+                {
+                    inMap.readLine();
+                }
+                String line = inMap.readLine();
+
+                while (line != null)
+                {
+                    String[] parts = line.split("\t");
+
+                    int stop = parts[idpos].indexOf('.');
+                    String id = parts[idpos].substring(0, stop);
+                    String key = id.substring(id.length() - keylength);
+
+                    tmpMap.add(key, id + "\t" + parts[taxpos] + "\n");
+
+                    line = inMap.readLine();
+                }
+
+                inMap.close();
+            }
+            tmpMap.close();
+            return null;
+        }
+
+        private List<File> mapFiles;
+        private File tmpMapFile;
+        private int taxpos;
+        private int idpos;
+        private int headerLines;
+        private int keylength;
+        private int cacheSize;
     }
 
-    public static void makeDataTemp(File dataFile, File tmpDataFile) throws Exception
+    private static class MakeDataTemp implements Callable<Void>
     {
-        Stream<DataPair<String,Sequence>> sequences = StreamSupport.stream(new FASequenceSpliterator(dataFile),false);
+        private MakeDataTemp(File dataFile, File tmpDataFile, int keylength, int cacheSize) throws Exception
+        {
+            this.dataFile = dataFile;
+            this.tmpDataFile = tmpDataFile;
+            this.keylength = keylength;
+            this.cacheSize = cacheSize;
+        }
 
-        IndexedOutputFileCache<String> cache = new ComparableIndexedOutputFileCache<>(1000,
-                new ZippedIndexedOutputFile<>(tmpDataFile,new StringCompressor(),false,5));
+        public Void call() throws Exception
+        {
+            Stream<DataPair<String, Sequence>> sequences = StreamSupport.stream(new FASequenceSpliterator(dataFile), false);
 
-        sequences.forEach(s -> writeSeq(cache, s));
+            IndexedOutputFileCache<String> cache = new ComparableIndexedOutputFileCache<>(cacheSize,
+                    new ZippedIndexedOutputFile<>(tmpDataFile, new StringCompressor(), false, 5));
 
-        cache.close();
+            sequences.forEach(s -> writeSeq(cache, s, keylength));
+
+            cache.close();
+
+            return null;
+        }
+
+        private File dataFile;
+        private File tmpDataFile;
+        private int keylength;
+        private int cacheSize;
     }
 
-    private static void writeSeq(IndexedOutputFileCache<String> cache, DataPair<String,Sequence> data)
+    private static void writeSeq(IndexedOutputFileCache<String> cache, DataPair<String,Sequence> data, int keylength)
     {
-        String index = data.getA().substring(data.getA().length()-2);
+        String index = data.getA().substring(data.getA().length()-keylength);
         try
         {
             cache.add(index, stringPairDataType.compress(data));
