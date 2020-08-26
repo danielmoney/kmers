@@ -18,6 +18,7 @@ import Zip.ZipOrNot;
 import org.apache.commons.cli.*;
 
 import java.io.*;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.text.SimpleDateFormat;
@@ -57,12 +58,14 @@ public class MakeDatabase
         dbtype.isRequired();
         options.addOptionGroup(dbtype);
 
-        options.addOption(Option.builder("m").hasArg().desc("Write read map to file").build());
+        options.addOption(Option.builder("r").hasArg().desc("Write read map to file").build());
+
+        options.addOption(Option.builder("m").hasArg().desc("Seq id to taxa id map (for use with -a").build());
 
         options.addOption(Option.builder("h").desc("Human readable output").build());
 
-        options.addOption(Option.builder("u").hasArg().desc("Filter kmers with of dust score greater than the given value").build());
-        options.addOption(Option.builder("r").hasArg().desc("Filter kmers with runs of the same base longer than the given value").build());
+        options.addOption(Option.builder("D").hasArg().desc("Filter kmers with of dust score greater than the given value").build());
+        options.addOption(Option.builder("R").hasArg().desc("Filter kmers with runs of the same base longer than the given value").build());
 
         options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
 
@@ -87,7 +90,21 @@ public class MakeDatabase
             // True is to include reverse complement - should have as a optional param as well?
             FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
 
-            KmersFromFile<Integer> kf = KmersFromFile.getFAtoRefDBInstance(j, k);
+            KmersFromFile<Integer> kf;
+            if (commands.hasOption('m'))
+            {
+                BufferedReader br = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('m')));
+                Map<String, Integer> map = new HashMap<>();
+                br.lines().forEach(line -> {
+                    String[] parts = line.split("\t");
+                    map.put(parts[0], Integer.parseInt(parts[1]));
+                });
+                kf = KmersFromFile.getFAtoRefDBInstance(j, k, map);
+            }
+            else
+            {
+                kf = KmersFromFile.getFAtoRefDBInstance(j, k);
+            }
 
             BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
 
@@ -98,7 +115,7 @@ public class MakeDatabase
             FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getReadPosInstance(), false);
 
             PrintWriter outReadMap = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(
-                    new FileOutputStream(new File(commands.getOptionValue('m')))))));
+                    new FileOutputStream(new File(commands.getOptionValue('r')))))));
 
             ReadIDMapping map = new ReadIDMapping(outReadMap);
 
@@ -126,13 +143,13 @@ public class MakeDatabase
     {
         BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
 
-        if (commands.hasOption('u'))
+        if (commands.hasOption('D'))
         {
-            kstream = kstream.filter(new Dust(Integer.parseInt(commands.getOptionValue('d'))));
+            kstream = kstream.filter(new Dust(Integer.parseInt(commands.getOptionValue('D'))));
         }
-        if (commands.hasOption('r'))
+        if (commands.hasOption('R'))
         {
-            kstream = kstream.filter(new RunOfSame(Integer.parseInt(commands.getOptionValue('r'))));
+            kstream = kstream.filter(new RunOfSame(Integer.parseInt(commands.getOptionValue('R'))));
         }
 
         dbc.addKmers(kstream);

@@ -7,6 +7,7 @@ import Kmers.KmerStream;
 import Reads.ReadPos;
 
 import java.io.*;
+import java.util.Map;
 import java.util.Spliterator;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -37,6 +38,11 @@ public class KmersFromFile<D>
     public static KmersFromFile<Integer> getFAtoRefDBInstance(int minK, int maxK)
     {
         return new KmersFromFile<>(KmersFromFileStateChanger.getFAinstance(),minK,maxK,(s, i) -> Integer.parseInt(s));
+    }
+
+    public static KmersFromFile<Integer> getFAtoRefDBInstance(int minK, int maxK, Map<String,Integer> map)
+    {
+        return new KmersFromFile<>(KmersFromFileStateChanger.getFAinstance(),minK,maxK,(s, i) -> map.get(s));
     }
 
     public static KmersFromFile<ReadPos> getFQtoReadDBInstance(int minK, int maxK, ReadIDMapping readMap)
