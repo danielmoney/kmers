@@ -11,12 +11,12 @@ public enum Base
 
     Base(byte i)
     {
-        this.pos = i;
+        this.representation = i;
     }
 
     public byte pos()
     {
-        return pos;
+        return representation;
     }
 
     public static Base fromCharacterByte(Byte b) throws InvalidBaseException
@@ -58,5 +58,5 @@ public enum Base
         }
     }
 
-    private final byte pos;
+    private final byte representation;
 }

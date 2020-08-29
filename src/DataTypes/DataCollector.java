@@ -1,11 +1,9 @@
 package DataTypes;
 
-import Compression.Compressor;
 import CountMaps.TreeCountMap;
 import Counts.CountDataType;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
-import Reads.ReadPosSetDataType;
 
 import java.util.Set;
 import java.util.stream.Collector;
@@ -66,7 +64,7 @@ public class DataCollector<D,C>
     {
         if (readPosInstance == null)
         {
-            readPosInstance = new DataCollector<>(new ReadPosDataType(), new ReadPosSetDataType(),
+            readPosInstance = new DataCollector<>(new ReadPosDataType(), new SetDataType<>(new ReadPosDataType()),
                     Collectors.toSet());
         }
         return readPosInstance;

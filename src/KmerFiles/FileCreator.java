@@ -11,7 +11,7 @@ import IndexedFiles.*;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
 import Kmers.KmerStream;
-import Kmers.KmerWithDataDatatType;
+import Kmers.KmerWithDataDataType;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,7 +45,7 @@ public class FileCreator<I,O> implements AutoCloseable
 
         this.dataCollector = dataCollector;
 
-        kwdCompressor = new KmerWithDataDatatType<>(dataCollector.getDataDataType());
+        kwdCompressor = new KmerWithDataDataType<>(dataCollector.getDataDataType());
 
         this.minK = -1;
         this.maxK = -1;
@@ -357,7 +357,7 @@ public class FileCreator<I,O> implements AutoCloseable
     private File dbFileTemp;
 
     private DataCollector<I,O> dataCollector;
-    private KmerWithDataDatatType<I> kwdCompressor;
+    private KmerWithDataDataType<I> kwdCompressor;
 
 //    private int maxKmerLength;
     private int keyLength;

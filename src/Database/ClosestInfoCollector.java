@@ -1,21 +1,21 @@
 package Database;
 
+import DataTypes.DataPair;
 import Kmers.Kmer;
+import Kmers.KmerDiff;
 import Kmers.KmerWithData;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
-public class ClosestInfo<M>
+public class ClosestInfoCollector<M>
 {
-    public ClosestInfo()
+    public ClosestInfoCollector()
     {
         matchedKmers = new TreeMap<>();
         mindist = 255;
     }
 
-    public ClosestInfo(KmerWithData<M> kwd)
+    public ClosestInfoCollector(KmerWithData<M> kwd)
     {
         matchedKmers = new TreeMap<>();
         matchedKmers.put(kwd.getKmer(), new CI<>(kwd,(byte) 0));
@@ -49,7 +49,7 @@ public class ClosestInfo<M>
         mindist = Math.min(ci.dist, mindist);
     }
 
-    public void addAll(ClosestInfo<M> oci)
+    public void addAll(ClosestInfoCollector<M> oci)
     {
          for (CI<M> ci : oci.getMatchedKmers())
         {
@@ -79,6 +79,18 @@ public class ClosestInfo<M>
         return mindist + "\t" + matchedKmers.toString();
     }
 
+    public Set<DataPair<KmerDiff,M>> getResult(Kmer search)
+    {
+        Set<DataPair<KmerDiff,M>> result = new TreeSet<>(new KmerDiffComparaotr());
+
+        for (Map.Entry<Kmer,CI<M>> e: matchedKmers.entrySet())
+        {
+            result.add(new DataPair<>(new KmerDiff(search,e.getKey()), e.getValue().kwd.getData()));
+        }
+
+        return result;
+    }
+
     private Map<Kmer,CI<M>> matchedKmers;
     private int mindist;
 
@@ -102,5 +114,35 @@ public class ClosestInfo<M>
 
         private KmerWithData<D> kwd;
         private byte dist;
+    }
+
+    public static class KmerDiffComparaotr implements Comparator<DataPair<KmerDiff,?>>
+    {
+        public int compare(DataPair<KmerDiff,?> p1, DataPair<KmerDiff,?> p2)
+        {
+            List<KmerDiff.Diff> kd1 = p1.getA().getDiffs();
+            List<KmerDiff.Diff> kd2 = p2.getA().getDiffs();
+
+            int c = Integer.compare(kd1.size(),kd2.size());
+            if (c != 0)
+            {
+                return c;
+            }
+
+            for (int i = 0; i < kd1.size(); i++)
+            {
+                c = Byte.compare(kd1.get(i).getPosition(), kd2.get(i).getPosition());
+                if (c != 0)
+                {
+                    return c;
+                }
+                c = Byte.compare(kd1.get(i).getBase().pos(), kd2.get(i).getBase().pos());
+                if (c != 0)
+                {
+                    return c;
+                }
+            }
+            return 0;
+        }
     }
 }

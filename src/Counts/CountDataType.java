@@ -10,12 +10,24 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 //Does not use TreeCountMapCompressor as it stores counts as longs and we don't need to
 
 public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
 {
+    public CountDataType(String cSeperator, String eSeperator)
+    {
+        this.cSeperator = cSeperator;
+        this.eSeperator = eSeperator;
+    }
+
+    public CountDataType()
+    {
+        this(":"," ");
+    }
+
     public byte[] compress(TreeCountMap<Integer> map)
     {
         int l = map.size() * 5 + 2;
@@ -85,10 +97,10 @@ public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
     public TreeCountMap<Integer> fromString(String s)
     {
         TreeCountMap<Integer> map = new TreeCountMap<>();
-        String parts[] = s.split(" ");
+        String parts[] = s.split(Pattern.quote(eSeperator));
         for (String p: parts)
         {
-            String[] parts2 = p.split(":");
+            String[] parts2 = p.split(Pattern.quote(cSeperator));
             map.put(Integer.parseInt(parts2[0]),Long.parseLong(parts2[1]));
         }
         return map;
@@ -96,8 +108,8 @@ public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
 
     public String toString(TreeCountMap<Integer> map)
     {
-        return map.entrySet().stream().map(e2 -> e2.getKey() + ":" + e2.getValue())
-                                .collect(Collectors.joining(" "));
+        return map.entrySet().stream().map(e2 -> e2.getKey() + cSeperator + e2.getValue())
+                                .collect(Collectors.joining(eSeperator));
     }
 
     public int[] getID()
@@ -112,4 +124,7 @@ public class CountDataType implements MergeableDataType<TreeCountMap<Integer>>
     {
         return (c1, c2) -> c1.addAll(c2);
     }
+
+    private String cSeperator;
+    private String eSeperator;
 }

@@ -5,9 +5,20 @@ import DataTypes.DataType;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.regex.Pattern;
 
 public class ReadPosDataType implements DataType<ReadPos>
 {
+    public ReadPosDataType(String seperator)
+    {
+        this.seperator = seperator;
+    }
+
+    public ReadPosDataType()
+    {
+        this(":");
+    }
+
     public byte[] compress(ReadPos rp)
     {
         ByteBuffer bb = ByteBuffer.allocate(6);
@@ -34,12 +45,12 @@ public class ReadPosDataType implements DataType<ReadPos>
 
     public String toString(ReadPos rp)
     {
-        return rp.toString();
+        return rp.getRead() + seperator + rp.getPos();
     }
 
     public ReadPos fromString(String s)
     {
-        String[] parts = s.split(":");
+        String[] parts = s.split(Pattern.quote(seperator));
         return new ReadPos(Integer.valueOf(parts[0]), Short.valueOf(parts[1]));
     }
 
@@ -49,5 +60,7 @@ public class ReadPosDataType implements DataType<ReadPos>
         id[0] = 2052;
         return id;
     }
+
+    private String seperator;
 }
 

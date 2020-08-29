@@ -129,8 +129,8 @@ public class MakeDatabase
         {
             FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
 
-            IndexedInputFile in = new ZippedIndexedInputFile(new File(commands.getOptionValue('i')), new StringCompressor());
-            KmerStream<Integer> kstream = new KmerStream(StreamSupport.stream(new PreProcessedSpliterator(in, j, k), false),j,k,false);
+            IndexedInputFile<String> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new StringCompressor());
+            KmerStream<Integer> kstream = new KmerStream<>(StreamSupport.stream(new PreProcessedSpliterator(in, j, k), false),j,k,false);
 
 //            kstream.limit(100).forEach(kwd -> System.out.println(kwd));
             filterAndCreate(kstream, dbc, commands);

@@ -5,6 +5,7 @@ import DataTypes.DataPair;
 import DataTypes.MergeableDataType;
 import Exceptions.InconsistentDataException;
 import KmerFiles.KmerFile;
+import Kmers.KmerDiff;
 import Kmers.KmerUtils;
 import Kmers.KmerWithData;
 import Kmers.KmerStream;
@@ -60,10 +61,17 @@ public class DB<D>
                 throw new InconsistentDataException("Files contains different kmer parameters (min/max length, key length or reverse complement included");
             }
         }
+
+        maxKey = 1;
+        for (int i = 0; i< keyLength; i++)
+        {
+            maxKey *=4;
+        }
     }
 
     //public <S> Stream<ClosestInfo<S,D>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just)
-    public <S> KmerStream<DataPair<S, ClosestInfo<D>>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just) throws InconsistentDataException
+    //public <S> KmerStream<DataPair<S, ClosestInfoCollector<D>>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just) throws InconsistentDataException
+    public <S> KmerStream<DataPair<S, Set<DataPair<KmerDiff,D>>>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just) throws InconsistentDataException
     {
         if ((searchKmers.getMinLength() < minLength) || (searchKmers.getMaxLength() > maxLength))
         {
@@ -75,8 +83,15 @@ public class DB<D>
         Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.onlyStandard().stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
         ProcessCommonSpliterator<S> spliterator = new ProcessCommonSpliterator<>(groupedStream, maxDiff, just, quick, searchKmers.getMinLength(), searchKmers.getMaxLength());
         return new KmerStream<>(
-                StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).flatMap(l -> l.stream()),
+                StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).flatMap(l -> l.stream()). map(kwd -> mapToResult(kwd)),
                 searchKmers.getMinLength(), searchKmers.getMaxLength(), searchKmers.getRC());
+    }
+
+    private <S> KmerWithData<DataPair<S,Set<DataPair<KmerDiff,D>>>> mapToResult(KmerWithData<DataPair<S, ClosestInfoCollector<D>>> in)
+    {
+        Set<DataPair<KmerDiff,D>> diffs = in.getData().getB().getResult(in.getKmer());
+
+        return new KmerWithData<>(in.getKmer(), new DataPair<>(in.getData().getA(), diffs));
     }
 
     public KmerStream<D> kmers(int key)
@@ -101,24 +116,28 @@ public class DB<D>
                 true);
     }
 
+    public int getMaxKey()
+    {
+        return maxKey;
+    }
 
-    private <S> List<KmerWithData<DataPair<S, ClosestInfo<D>>>> quickMatchCommonKey(List<KmerWithData<S>> kmers, int maxDiff)
+    private <S> List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>> quickMatchCommonKey(List<KmerWithData<S>> kmers, int maxDiff)
     {
         int key = kmers.get(0).getKmer().key(keyLength);
         int length = kmers.get(0).getKmer().length();
 
         return StreamUtils.matchTwoStreams(kmers.stream(),KmerUtils.restrictedStream(kmers(key),length,length, dataType).stream(),
-                (kwd1, kwd2) -> new KmerWithData<>(kwd1.getKmer(), new DataPair<>(kwd1.getData(), new ClosestInfo<>(kwd2))),
+                (kwd1, kwd2) -> new KmerWithData<>(kwd1.getKmer(), new DataPair<>(kwd1.getData(), new ClosestInfoCollector<>(kwd2))),
                 (kwd1, kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())).collect(Collectors.toList());
     }
 
-    private <S> List<KmerWithData<DataPair<S, ClosestInfo<D>>>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just, int minK, int maxK)
+    private <S> List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just, int minK, int maxK)
     {
-        List<ClosestInfo<D>> currentBest = new ArrayList<>(kmers.size());
+        List<ClosestInfoCollector<D>> currentBest = new ArrayList<>(kmers.size());
 
         for (KmerWithData<S> k: kmers)
         {
-            currentBest.add(new ClosestInfo<D>());
+            currentBest.add(new ClosestInfoCollector<D>());
         }
 
         byte[] keybytes = new byte[keyLength];
@@ -136,8 +155,8 @@ public class DB<D>
             for (int i = 0; i < kmers.size(); i++)
             {
                 KmerWithData<S> k = kmers.get(i);
-                ClosestInfo<D> newci = r.closestKmers(k, maxDiff, just);
-                ClosestInfo<D> oldci = currentBest.get(i);
+                ClosestInfoCollector<D> newci = r.closestKmers(k, maxDiff, just);
+                ClosestInfoCollector<D> oldci = currentBest.get(i);
                 if ((newci.getMinDist() == oldci.getMinDist()) || !just)
                 {
 //                    oldci.merge(newci);
@@ -150,7 +169,7 @@ public class DB<D>
             }
         }
 
-        List<KmerWithData<DataPair<S, ClosestInfo<D>>>> ret = new ArrayList<>(kmers.size());
+        List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>> ret = new ArrayList<>(kmers.size());
 
         for (int i = 0; i < kmers.size(); i++)
         {
@@ -161,12 +180,12 @@ public class DB<D>
         return ret;
     }
 
-    private class ProcessCommonSpliterator<S> implements Spliterator<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>>
+    private class ProcessCommonSpliterator<S> implements Spliterator<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>
     {
         private ProcessCommonSpliterator(Stream<List<KmerWithData<S>>> inputStream, int maxDiff, boolean just, boolean quick, int minK, int maxK)
         {
             this.input = inputStream.iterator();
-            ex = new LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>>();
+            ex = new LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>();
             futures = new LinkedList<>();
             for (int i = 0; i < 8; i++)
             {
@@ -190,13 +209,13 @@ public class DB<D>
             this.maxK = maxK;
         }
 
-        public boolean tryAdvance(Consumer<? super List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> consumer)
+        public boolean tryAdvance(Consumer<? super List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> consumer)
         {
             if (!futures.isEmpty())
             {
                 try
                 {
-                    Future<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> future = futures.poll();
+                    Future<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> future = futures.poll();
                     if (input.hasNext())
                     {
                         List<KmerWithData<S>> l = input.next();
@@ -231,7 +250,7 @@ public class DB<D>
         }
 
         @Override
-        public Spliterator<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> trySplit()
+        public Spliterator<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> trySplit()
         {
             return null;
         }
@@ -260,9 +279,9 @@ public class DB<D>
             }
         }
 
-        LinkedList<Future<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>>> futures;
+        LinkedList<Future<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>> futures;
         Iterator<List<KmerWithData<S>>> input;
-        LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfo<D>>>>> ex;
+        LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> ex;
         private int maxDiff;
         private boolean just;
         private boolean quick;
@@ -276,4 +295,5 @@ public class DB<D>
     private int minLength;
     private int maxLength;
     private List<KmerFile<D>> files;
+    private int maxKey;
 }

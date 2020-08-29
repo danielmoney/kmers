@@ -1,22 +1,19 @@
+import Compression.StringCompressor;
 import CountMaps.CountMap;
 import CountMaps.TreeCountMap;
-import Counts.CountDataType;
 import DataTypes.DataPair;
 import DataTypes.DataPairDataType;
-import DataTypes.DataType;
-import DataTypes.MergeableDataType;
-import Database.ClosestInfo;
-import Database.ClosestInfoDataType;
-import Database.DB;
-import KmerFiles.KmerFile;
+import DataTypes.ResultsDataType;
+import DataTypes.StringDataType;
+import IndexedFiles.ZippedIndexedInputFile;
 import Kmers.*;
 import Reads.ReadPos;
-import Reads.ReadPosSetDataType;
+import Utils.ResultsFile;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Stream;
 
 public class Testing
 {
@@ -279,24 +276,24 @@ public class Testing
          */
 
 
-        ReadPosSetDataType rt = new ReadPosSetDataType();
-        CountDataType dbt = new CountDataType();
-
-        ClosestInfoDataType<TreeCountMap<Integer>> cit = new ClosestInfoDataType<>(dbt);
-
-        DataPairDataType<Set<ReadPos>, ClosestInfo<TreeCountMap<Integer>>> rest = new DataPairDataType<>(rt,cit);
-
-        KmerWithDataDatatType<DataPair<Set<ReadPos>, ClosestInfo<TreeCountMap<Integer>>>> kwdt = new KmerWithDataDatatType<>(rest);
-
-
-        KmerFile<TreeCountMap<Integer>> dbf = new KmerFile<>(new File("medium/norway_cr.db.gz"), dbt);
-        DB<TreeCountMap<Integer>> db = new DB<>(dbf);
-
-        KmerFile<Set<ReadPos>> rf = new KmerFile<>(new File("reads/test.db.gz"), rt);
+//        ReadPosSetDataType rt = new ReadPosSetDataType();
+//        CountDataType dbt = new CountDataType();
+//
+//        ClosestInfoDataType<TreeCountMap<Integer>> cit = new ClosestInfoDataType<>(dbt);
+//
+//        DataPairDataType<Set<ReadPos>, ClosestInfo<TreeCountMap<Integer>>> rest = new DataPairDataType<>(rt,cit);
+//
+//        KmerWithDataDatatType<DataPair<Set<ReadPos>, ClosestInfo<TreeCountMap<Integer>>>> kwdt = new KmerWithDataDatatType<>(rest);
+//
+//
+//        KmerFile<TreeCountMap<Integer>> dbf = new KmerFile<>(new File("medium/norway_cr.db.gz"), dbt);
+//        DB<TreeCountMap<Integer>> db = new DB<>(dbf);
+//
+//        KmerFile<Set<ReadPos>> rf = new KmerFile<>(new File("reads/test.db.gz"), rt);
 
         /*** Exact ***/
-        int diff = 0;
-        int min = 32;
+//        int diff = 0;
+//        int min = 32;
 
         /*** Inexact ***/
 //        int diff = 1;
@@ -313,14 +310,50 @@ public class Testing
 //        System.out.println(resultStream.filter(kwd -> kwd.getData().getB().hasMatches()).count());
 //        resultStream.close();
 //
-//        System.out.println(sdf.format(new Date()));
 
-
-        KmerWithDataDatatType<Set<ReadPos>> rpdt = new KmerWithDataDatatType<>(rt);
-        rf.allKmers().limit(100).forEach(kwd -> System.out.println(rpdt.toString(kwd)));
+//
+//        KmerWithDataDatatType<Set<ReadPos>> rpdt = new KmerWithDataDatatType<>(rt);
+//        rf.allKmers().limit(100).forEach(kwd -> System.out.println(rpdt.toString(kwd)));
 
 //        KmerWithDataDatatType<TreeCountMap<Integer>> cidt = new KmerWithDataDatatType<>(dbt);
 //        db.allKmers().limit(100).forEach(kwd -> System.out.println(cidt.toString(kwd)));
+
+
+        /*************************
+         * Diff testing
+         */
+
+//        Kmer k1 = new Kmer("ACTGACTG");
+//        Kmer k2 = new Kmer("ACTTACTT");
+//
+//        KmerDiff diff = new KmerDiff(k1,k2);
+//        Kmer kt = diff.apply(k1);
+//        System.out.println(kt);
+//        System.out.println(diff);
+//
+//        KmerDiffDataType dt = new KmerDiffDataType();
+//
+//        KmerDiff diff2 = dt.fromString(dt.toString(diff));
+//        System.out.println(diff2);
+//
+//        ByteBuffer bb = ByteBuffer.wrap(dt.compress(diff));
+//        KmerDiff diff3 = dt.decompress(bb);
+//        System.out.println(diff3);
+
+        ZippedIndexedInputFile<String> in = new ZippedIndexedInputFile<>(new File(args[0]), new StringCompressor());
+//        in.indexes().stream().forEach(i -> System.out.println(i));
+        ByteBuffer input = ByteBuffer.wrap(in.data("_a"));
+        DataPairDataType<String,Sequence> stringPairDataType = new DataPairDataType<>(new StringDataType(), new SequenceDataType());
+        DataPair<String,Sequence> dp = stringPairDataType.decompress(input);
+        System.out.println(dp.getA());
+
+//        ResultsDataType<Set<ReadPos>, TreeCountMap<Integer>> dt = ResultsDataType.getReadReferenceInstance();
+//
+//        (new ResultsFile<>(new File("match/test.gz"), dt)).stream().limit(10).forEach(
+//                r -> System.out.println(dt.toString(r))
+//        );
+//
+        System.out.println(sdf.format(new Date()));
     }
 
     private static void printkwd(KmerWithData<CountMap<Integer>> kwd)

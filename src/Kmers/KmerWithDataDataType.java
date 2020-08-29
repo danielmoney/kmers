@@ -7,12 +7,19 @@ import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.regex.Pattern;
 
-public class KmerWithDataDatatType<D> implements DataType<KmerWithData<D>>
+public class KmerWithDataDataType<D> implements DataType<KmerWithData<D>>
 {
-    public KmerWithDataDatatType(DataType<D> dataCompressor)
+    public KmerWithDataDataType(DataType<D> dataCompressor, String seperator)
     {
         this.dataCompressor = dataCompressor;
+        this.seperator = seperator;
+    }
+
+    public KmerWithDataDataType(DataType<D> dataCompressor)
+    {
+        this(dataCompressor, "\t");
     }
 
 //    public KmerWithData<D> decompress(byte[] bytes)
@@ -69,14 +76,14 @@ public class KmerWithDataDatatType<D> implements DataType<KmerWithData<D>>
 //        return kwd.toString();
         StringBuilder sb = new StringBuilder();
         sb.append(kwd.getKmer().toString());
-        sb.append("\t");
+        sb.append(seperator);
         sb.append(dataCompressor.toString(kwd.getData()));
         return sb.toString();
     }
 
     public KmerWithData<D> fromString(String s)
     {
-        String[] parts = s.split("\t",1);
+        String[] parts = s.split(Pattern.quote(seperator),2);
         Kmer k = Kmer.createUnchecked(parts[0].getBytes());
         D d = dataCompressor.fromString(parts[1]);
         return new KmerWithData<>(k,d);
@@ -92,5 +99,6 @@ public class KmerWithDataDatatType<D> implements DataType<KmerWithData<D>>
         return id;
     }
 
+    String seperator;
     DataType<D> dataCompressor;
 }

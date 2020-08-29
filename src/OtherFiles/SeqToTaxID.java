@@ -84,10 +84,10 @@ public class SeqToTaxID
             z = Integer.parseInt(commands.getOptionValue('z',"5"));
         }
 
-        ExecutorService ex = Executors.newFixedThreadPool(2);
-
 //        makeDataTemp(dataFile, tmpDataFile, keylength, cachesize);
 //        makeMapTemp(mapFiles, tmpMapFile, taxpos, idpos, headerLines, keylength,cachesize);
+
+        ExecutorService ex = Executors.newFixedThreadPool(2);
 
         ex.submit(new MakeDataTemp(dataFile, tmpDataFile, keylength, cachesize));
         ex.submit(new MakeMapTemp(mapFiles, tmpMapFile, taxpos, idpos, headerLines, keylength,cachesize));
@@ -124,7 +124,10 @@ public class SeqToTaxID
 
         for (String index : in2Data.indexes())
         {
-            exec.submit(new CreateMapped(in2Data, in2Map, out, index, hr));
+            if (in2Map.hasIndex(index))
+            {
+                exec.submit(new CreateMapped(in2Data, in2Map, out, index, hr));
+            }
         }
         exec.shutdown();
         out.close();
@@ -133,8 +136,8 @@ public class SeqToTaxID
         in2Data.close();
         in2Map.close();
 
-        tmpDataFile.delete();
-        tmpMapFile.delete();
+//        tmpDataFile.delete();
+//        tmpMapFile.delete();
     }
 
     private static class CreateMapped implements Callable<Void>
@@ -166,18 +169,23 @@ public class SeqToTaxID
                 while (input.hasRemaining())
                 {
                     DataPair<String,Sequence> dp = stringPairDataType.decompress(input);
-                    DataPair<Integer,Sequence> newdp = new DataPair<>(map.get(dp.getA()),dp.getB());
-                    byte[] b;
-                    if (hr)
+                    Integer m = map.get(dp.getA());
+                    // If we have a mapping
+                    if (m != null)
                     {
-                        b = (integerPairDataType.toString(newdp) + "\n").getBytes();
+                        DataPair<Integer, Sequence> newdp = new DataPair<>(m, dp.getB());
+                        byte[] b;
+                        if (hr)
+                        {
+                            b = (integerPairDataType.toString(newdp) + "\n").getBytes();
+                        }
+                        else
+                        {
+                            b = integerPairDataType.compress(newdp);
+                        }
+                        bytes.add(b);
+                        size += b.length;
                     }
-                    else
-                    {
-                        b = integerPairDataType.compress(newdp);
-                    }
-                    bytes.add(b);
-                    size += b.length;
                 }
 
                 ByteBuffer bb = ByteBuffer.allocate(size);
