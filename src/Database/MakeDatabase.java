@@ -8,6 +8,7 @@ import DataTypes.DataCollector;
 import DataTypes.DataPair;
 import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
+import Exceptions.InconsistentDataException;
 import IndexedFiles.*;
 import KmerFiles.FileCreator;
 import Kmers.*;
@@ -23,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -108,7 +110,9 @@ public class MakeDatabase
 
             BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
 
-            filterAndCreate(kf.streamFromFile(in), dbc, commands);
+            filterAndAdd(kf.streamFromFile(in), dbc, commands);
+
+            create(dbc, commands);
         }
         if (commands.hasOption('q'))
         {
@@ -123,26 +127,63 @@ public class MakeDatabase
 
             BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
 
-            filterAndCreate(kf.streamFromFile(in), dbc, commands);
+            filterAndAdd(kf.streamFromFile(in), dbc, commands);
+
+            create(dbc,commands);
         }
         if (commands.hasOption('p'))
         {
             FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
 
             IndexedInputFile<String> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new StringCompressor());
-            KmerStream<Integer> kstream = new KmerStream<>(StreamSupport.stream(new PreProcessedSpliterator(in, j, k), false),j,k,false);
 
-//            kstream.limit(100).forEach(kwd -> System.out.println(kwd));
-            filterAndCreate(kstream, dbc, commands);
+            LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
+
+            for (String index: in.indexes())
+            {
+                ex.submit(new ProcessIndex(dbc,in,j,k,commands,index));
+            }
+
+            ex.shutdown();
+
+            create(dbc,commands);
         }
 
         System.out.println(sdf.format(new Date()));
     }
 
-    private static <D> void filterAndCreate(KmerStream<D> kstream, FileCreator<D,?> dbc, CommandLine commands) throws Exception
+    private static class ProcessIndex implements Callable<Void>
     {
-        BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
+        public ProcessIndex(FileCreator<Integer, TreeCountMap<Integer>> dbc, IndexedInputFile<String> in,
+                            int j, int k, CommandLine commands, String index)
+        {
+            this.dbc = dbc;
+            this.in = in;
+            this.j = j;
+            this.k = k;
+            this.commands = commands;
+            this.index = index;
+        }
 
+        public Void call() throws Exception
+        {
+            KmerStream<Integer> kstream = new KmerStream<>(StreamSupport.stream(new PreProcessedSpliterator(in, j, k, index), false),j,k,false);
+
+            filterAndAdd(kstream, dbc, commands);
+
+            return null;
+        }
+
+        private FileCreator<Integer, TreeCountMap<Integer>> dbc;
+        private IndexedInputFile<String> in;
+        private int j;
+        private int k;
+        private CommandLine commands;
+        private String index;
+    }
+
+    private static <D> void filterAndAdd(KmerStream<D> kstream, FileCreator<D,?> dbc, CommandLine commands) throws InconsistentDataException
+    {
         if (commands.hasOption('D'))
         {
             kstream = kstream.filter(new Dust(Integer.parseInt(commands.getOptionValue('D'))));
@@ -153,7 +194,10 @@ public class MakeDatabase
         }
 
         dbc.addKmers(kstream);
+    }
 
+    private static <D> void create(FileCreator<D,?> dbc, CommandLine commands) throws Exception
+    {
         IndexedOutputFile<Integer> out;
         try
         {
@@ -180,18 +224,17 @@ public class MakeDatabase
 
     private static class PreProcessedSpliterator implements Spliterator<KmerWithData<Integer>>
     {
-        private PreProcessedSpliterator(IndexedInputFile<String> in, int minK, int maxK)
+        private PreProcessedSpliterator(IndexedInputFile<String> in, int minK, int maxK, String index)
         {
             this.in = in;
-            indexIterator = in.indexes().iterator();
             hr = in.isHumanReadable();
             if (hr)
             {
-                lines = Collections.emptyIterator();
+                lines = in.lines(index).iterator();
             }
             else
             {
-                bb = ByteBuffer.allocate(0);
+                bb = ByteBuffer.wrap(in.data(index));
             }
             this.minK = minK;
             this.maxK = maxK;
@@ -206,14 +249,7 @@ public class MakeDatabase
                 {
                     if (!lines.hasNext())
                     {
-                        if (indexIterator.hasNext())
-                        {
-                            lines = in.lines(indexIterator.next()).iterator();
-                        }
-                        else
-                        {
-                            return false;
-                        }
+                        return false;
                     }
                     dp = integerPairDataType.fromString(lines.next());
                 }
@@ -221,14 +257,7 @@ public class MakeDatabase
                 {
                     if (!bb.hasRemaining())
                     {
-                        if (indexIterator.hasNext())
-                        {
-                            bb = ByteBuffer.wrap(in.data(indexIterator.next()));
-                        }
-                        else
-                        {
-                            return false;
-                        }
+                        return false;
                     }
                     dp = integerPairDataType.decompress(bb);
                 }
