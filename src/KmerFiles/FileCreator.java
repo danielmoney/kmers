@@ -4,6 +4,7 @@ import Compression.Compressor;
 import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
 import Concurrent.OrderedIndexedOutput;
+import Concurrent.OutputProgress;
 import DataTypes.DataCollector;
 import DataTypes.DataType;
 import Exceptions.InconsistentDataException;
@@ -153,11 +154,13 @@ public class FileCreator<I,O> implements AutoCloseable
         }
         out.write(meta,-1);
 
+        OutputProgress progress = new OutputProgress("%4d/" + maxkey + " output indexes completed.");
+
         for (int i = 0; i < maxkey; i++)
         {
             //exec.submit(new MakeAndWriteKey<>(tempIn,i,orderedout, maxKmerLength, dataCollector.getDataDataType(),
             exec.submit(new MakeAndWriteKey<>(tempIn,i,orderedout, maxK, dataCollector.getDataDataType(),
-                    dataCollector.getCollectionDataType(), dataCollector.getCollector(), hr));
+                    dataCollector.getCollectionDataType(), dataCollector.getCollector(), hr, progress));
         }
 
         exec.shutdown();
@@ -201,7 +204,7 @@ public class FileCreator<I,O> implements AutoCloseable
     private static class MakeAndWriteKey<I,O,A> implements Callable<Void>
     {
         private MakeAndWriteKey(IndexedInputFile<Integer> in, int index, OrderedIndexedOutput out, int maxKmerLength, DataType<I> inputCompressor,
-                                DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr)
+                                DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr, OutputProgress progress)
         {
             this.in = in;
             this.index = index;
@@ -211,6 +214,7 @@ public class FileCreator<I,O> implements AutoCloseable
             this.outputCompressor = outputCompressor;
             this.collector = collector;
             this.hr = hr;
+            this.progress = progress;
         }
 
         public Void call()
@@ -334,6 +338,8 @@ public class FileCreator<I,O> implements AutoCloseable
                 throw new UncheckedIOException(e);
             }
 
+            progress.next();
+
             return null;
         }
 
@@ -347,6 +353,7 @@ public class FileCreator<I,O> implements AutoCloseable
         private DataType<I> inputCompressor;
         private DataType<O> outputCompressor;
         private boolean hr;
+        private OutputProgress progress;
     }
 
     private boolean rc;

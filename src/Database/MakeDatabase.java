@@ -3,6 +3,7 @@ package Database;
 import Compression.IntCompressor;
 import Compression.StringCompressor;
 import Concurrent.LimitedQueueExecutor;
+import Concurrent.OutputProgress;
 import CountMaps.TreeCountMap;
 import DataTypes.DataCollector;
 import DataTypes.DataPair;
@@ -139,9 +140,11 @@ public class MakeDatabase
 
             LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
 
+            OutputProgress progress = new OutputProgress("%3d/" + in.indexes().size() + " input indexes completed.");
+
             for (String index: in.indexes())
             {
-                ex.submit(new ProcessIndex(dbc,in,j,k,commands,index));
+                ex.submit(new ProcessIndex(dbc,in,j,k,commands,index, progress));
             }
 
             ex.shutdown();
@@ -155,7 +158,7 @@ public class MakeDatabase
     private static class ProcessIndex implements Callable<Void>
     {
         public ProcessIndex(FileCreator<Integer, TreeCountMap<Integer>> dbc, IndexedInputFile<String> in,
-                            int j, int k, CommandLine commands, String index)
+                            int j, int k, CommandLine commands, String index, OutputProgress progress)
         {
             this.dbc = dbc;
             this.in = in;
@@ -163,6 +166,7 @@ public class MakeDatabase
             this.k = k;
             this.commands = commands;
             this.index = index;
+            this.progress = progress;
         }
 
         public Void call() throws Exception
@@ -170,6 +174,8 @@ public class MakeDatabase
             KmerStream<Integer> kstream = new KmerStream<>(StreamSupport.stream(new PreProcessedSpliterator(in, j, k, index), false),j,k,false);
 
             filterAndAdd(kstream, dbc, commands);
+
+            progress.next();
 
             return null;
         }
@@ -180,6 +186,7 @@ public class MakeDatabase
         private int k;
         private CommandLine commands;
         private String index;
+        private OutputProgress progress;
     }
 
     private static <D> void filterAndAdd(KmerStream<D> kstream, FileCreator<D,?> dbc, CommandLine commands) throws InconsistentDataException
