@@ -95,9 +95,9 @@ public class Matcher
         int minK = Integer.parseInt(commands.getOptionValue('l',Integer.toString(meta.minLength)));
         int maxK = Integer.parseInt(commands.getOptionValue('k',Integer.toString(meta.maxLength)));
 
-        SetDataType<ReadPos> rt = new SetDataType<>(new ReadPosDataType());
+        SetDataType<ReadPos> readDT = new SetDataType<>(new ReadPosDataType());
         //if (dataID == 1026) // If reads file against db
-        if (Arrays.equals(meta.dataID, rt.getID()))
+        if (Arrays.equals(meta.dataID, readDT.getID()))
         {
 
 //            DataPairDataType<Set<ReadPos>, ClosestInfoCollector<TreeCountMap<Integer>>> rest = new DataPairDataType<>(rt,cit);
@@ -105,7 +105,14 @@ public class Matcher
             //KmerWithDataDatatType<DataPair<Set<ReadPos>, ClosestInfoCollector<TreeCountMap<Integer>>>> kwdt = new KmerWithDataDatatType<>(rest);
 //            KmerWithDataDataType<DataPair<Set<ReadPos>, Set<DataPair<KmerDiff,TreeCountMap<Integer>>>>> kwdt = new KmerWithDataDataType<>(rest, "\t");
 
-            doMatching(new KmerFile<>(f, new SetDataType<>(new ReadPosDataType())), db, out, ResultsDataType.getReadReferenceInstance(),
+            doMatching(new KmerFile<>(f, readDT), db, out, ResultsDataType.getReadReferenceInstance(),
+                    maxDiff, just, minK, maxK);
+        }
+
+        CountDataType referenceDT = new CountDataType();
+        if (Arrays.equals(meta.dataID, referenceDT.getID()))
+        {
+            doMatching(new KmerFile<>(f, referenceDT), db, out, ResultsDataType.getReferenceReferenceInstance(),
                     maxDiff, just, minK, maxK);
         }
 

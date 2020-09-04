@@ -33,4 +33,10 @@ public class ResultsDataType<S,M> extends KmerWithDataDataType<DataPair<S, Set<D
         DataType<TreeCountMap<Integer>> referenceDT = new CountDataType("x","|");
         return new ResultsDataType<>(readsDT,referenceDT);
     }
+
+    public static ResultsDataType<TreeCountMap<Integer>, TreeCountMap<Integer>> getReferenceReferenceInstance()
+    {
+        DataType<TreeCountMap<Integer>> referenceDT = new CountDataType("x","|");
+        return new ResultsDataType<>(referenceDT,referenceDT);
+    }
 }
