@@ -47,6 +47,11 @@ public class KmerWithData<D> implements Comparable<KmerWithData<D>>
         }
     }
 
+    public void inplaceRC()
+    {
+        kmer.inplaceRC();
+    }
+
     private Kmer kmer;
     private D data;
 }

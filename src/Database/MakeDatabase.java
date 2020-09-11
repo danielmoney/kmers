@@ -254,6 +254,12 @@ public class MakeDatabase
             }
             this.minK = minK;
             this.maxK = maxK;
+
+            reuseBytes = new byte[maxK-minK+1][];
+            for (int i = minK; i <= maxK; i++)
+            {
+                reuseBytes[i-minK] = new byte[i];
+            }
         }
 
         public boolean tryAdvance(Consumer<? super KmerWithData<Integer>> consumer)
@@ -285,14 +291,20 @@ public class MakeDatabase
 
             int end = Math.min(curstart+maxK,curseq.length());
             int l = end - curstart;
-            byte[] kbytes = new byte[l];
-            System.arraycopy(curseq.getRawBytes(),curstart,kbytes,0,l);
+//            byte[] kbytes = new byte[l];
+//            System.arraycopy(curseq.getRawBytes(),curstart,kbytes,0,l);
+
+            System.arraycopy(curseq.getRawBytes(),curstart,reuseBytes[l-minK],0,l);
+
             curstart++;
             if ((curseq.length() - curstart) < minK)
             {
                 curseq = null;
             }
-            consumer.accept(new KmerWithData<>(Kmer.createUnchecked(kbytes), curid));
+//            consumer.accept(new KmerWithData<>(Kmer.createUnchecked(kbytes), curid));
+
+            consumer.accept(new KmerWithData<>(Kmer.createUnchecked(reuseBytes[l-minK]), curid));
+
             return true;
         }
 
@@ -330,6 +342,8 @@ public class MakeDatabase
 
         private int minK;
         private int maxK;
+
+        private byte[][] reuseBytes;
     }
 
     private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss\t");

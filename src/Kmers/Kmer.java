@@ -139,6 +139,91 @@ public class Kmer extends Sequence
         return k;
     }
 
+    public void inplaceRC()
+    {
+        byte temp = (byte) 0;
+        try
+        {
+            for (int i = 0; i < chars.length / 2; i++)
+            {
+
+                switch (Base.fromByte(chars[i]))
+                {
+                    case A:
+                        temp = Base.T.pos();
+                        break;
+                    case C:
+                        temp = Base.G.pos();
+                        break;
+                    case T:
+                        temp = Base.A.pos();
+                        break;
+                    case G:
+                        temp = Base.C.pos();
+                        break;
+                }
+
+                switch (Base.fromByte(chars[chars.length - i - 1]))
+                {
+                    case A:
+                        chars[i] = Base.T.pos();
+                        break;
+                    case C:
+                        chars[i] = Base.G.pos();
+                        break;
+                    case T:
+                        chars[i] = Base.A.pos();
+                        break;
+                    case G:
+                        chars[i] = Base.C.pos();
+                        break;
+                }
+                chars[chars.length - i - 1] = temp;
+            }
+
+            if ((chars.length % 2) == 1)
+            {
+                int mid = chars.length/2;
+                switch (Base.fromByte(chars[mid]))
+                {
+                    case A:
+                        chars[mid] = Base.T.pos();
+                        break;
+                    case C:
+                        chars[mid] = Base.G.pos();
+                        break;
+                    case T:
+                        chars[mid] = Base.A.pos();
+                        break;
+                    case G:
+                        chars[mid] = Base.C.pos();
+                        break;
+                }
+            }
+        }
+        catch (InvalidBaseException ex)
+        {
+            // SHOULD NEVER GET HERE
+        }
+    }
+
+    public boolean isOwnRC()
+    {
+        if ((chars.length % 2) == 1)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < chars.length / 2; i++)
+        {
+            if (chars[i] != chars[chars.length-i-1])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public StandardKmer getStandardKmer()
     {
         return StandardKmer.createUnchecked(chars);

@@ -135,7 +135,8 @@ public class Sequence implements Comparable<Sequence>
 
     public byte[] getRawBytes()
     {
-        return Arrays.copyOf(chars,chars.length);
+        //return Arrays.copyOf(chars,chars.length);
+        return chars;
     }
 
     public int length()

@@ -73,12 +73,17 @@ public class FileCreator<I,O> implements AutoCloseable
                         {
 //                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
                             fileCache.add(kwd.getKmer().key(keyLength), kwdCompressor.compress(kwd));
-                            KmerWithData<I> rc = new KmerWithData<>(kwd.getKmer().getRC(), kwd.getData());
-                            //Check for plaindromes
-                            if (!kwd.getKmer().equals(rc.getKmer()))
+//                            KmerWithData<I> rc = new KmerWithData<>(kwd.getKmer().getRC(), kwd.getData());
+//                            //Check for plaindromes
+//                            if (!kwd.getKmer().equals(rc.getKmer()))
+//                            {
+////                                fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
+//                                fileCache.add(rc.getKmer().key(keyLength), kwdCompressor.compress(rc));
+//                            }
+                            if (!kwd.getKmer().isOwnRC())
                             {
-//                                fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
-                                fileCache.add(rc.getKmer().key(keyLength), kwdCompressor.compress(rc));
+                                kwd.inplaceRC();
+                                fileCache.add(kwd.getKmer().key(keyLength), kwdCompressor.compress(kwd));
                             }
                         }
                         catch (IOException ex)

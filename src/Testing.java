@@ -1,23 +1,8 @@
-import Compression.StringCompressor;
 import CountMaps.CountMap;
-import CountMaps.TreeCountMap;
-import DataTypes.DataPair;
-import DataTypes.DataPairDataType;
-import DataTypes.ResultsDataType;
-import DataTypes.StringDataType;
-import IndexedFiles.ZippedIndexedInputFile;
 import Kmers.*;
-import OtherFiles.KmersFromFile;
-import Reads.ReadPos;
-import Utils.ResultsFile;
-import Zip.ZipOrNot;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Testing
 {
@@ -358,18 +343,22 @@ public class Testing
 //        );
 //
 
-        BufferedReader br = ZipOrNot.getBufferedReader(new File("map.dat"));
-        Map<String, Integer> map = new HashMap<>();
-        br.lines().forEach(line -> {
-            String[] parts = line.split("\t");
-            map.put(parts[0], Integer.parseInt(parts[1]));
-        });
-        System.out.println(map.keySet().stream()
-                .map(key -> key + "=" + map.get(key))
-                .collect(Collectors.joining(", ", "{", "}")));
-        KmersFromFile<Integer> kf = KmersFromFile.getFAtoRefDBInstance(24, 48, map);
+//        BufferedReader br = ZipOrNot.getBufferedReader(new File("map.dat"));
+//        Map<String, Integer> map = new HashMap<>();
+//        br.lines().forEach(line -> {
+//            String[] parts = line.split("\t");
+//            map.put(parts[0], Integer.parseInt(parts[1]));
+//        });
+//        System.out.println(map.keySet().stream()
+//                .map(key -> key + "=" + map.get(key))
+//                .collect(Collectors.joining(", ", "{", "}")));
+//        KmersFromFile<Integer> kf = KmersFromFile.getFAtoRefDBInstance(24, 48, map);
+//
+//        kf.streamFromFile(ZipOrNot.getBufferedReader(new File("GCA_000001905.1_Loxafr3.0_genomic.fna.gz"))).limit(100).forEach(kwd -> System.out.println(kwd));
 
-        kf.streamFromFile(ZipOrNot.getBufferedReader(new File("GCA_000001905.1_Loxafr3.0_genomic.fna.gz"))).limit(100).forEach(kwd -> System.out.println(kwd));
+        Kmer k = new Kmer("ACTTCA");
+
+        System.out.println(k.isOwnRC());
 
         System.out.println(sdf.format(new Date()));
     }
