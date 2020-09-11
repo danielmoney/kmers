@@ -34,12 +34,26 @@ public class KmersFromFileStateChanger
     private Map<KmersFromFileState, Map<Integer, KmersFromFileState>> mapping;
     private KmersFromFileState startState;
 
-    public static KmersFromFileStateChanger getFAinstance()
+    public static KmersFromFileStateChanger getOldinstance()
     {
         KmersFromFileStateChanger stateChanger = new KmersFromFileStateChanger(KmersFromFileState.ID);
         stateChanger.add(KmersFromFileState.ID, '\t', KmersFromFileState.KMER);
         stateChanger.add(KmersFromFileState.ID, ' ', KmersFromFileState.KMER);
         stateChanger.add(KmersFromFileState.KMER, '\n', KmersFromFileState.ID);
+        return stateChanger;
+    }
+
+    public static KmersFromFileStateChanger getFAinstance()
+    {
+//        KmersFromFileStateChanger stateChanger = new KmersFromFileStateChanger(KmersFromFileState.ID);
+        KmersFromFileStateChanger stateChanger = new KmersFromFileStateChanger(KmersFromFileState.OTHER);
+//        stateChanger.add(KmersFromFileState.ID, '\t', KmersFromFileState.KMER);
+//        stateChanger.add(KmersFromFileState.ID, ' ', KmersFromFileState.KMER);
+        stateChanger.add(KmersFromFileState.ID, ' ', KmersFromFileState.OTHER);
+        stateChanger.add(KmersFromFileState.ID, '\n', KmersFromFileState.KMER);
+        stateChanger.add(KmersFromFileState.OTHER,'\n',KmersFromFileState.KMER);
+        stateChanger.add(KmersFromFileState.KMER, '\n', KmersFromFileState.OTHER);
+        stateChanger.add(KmersFromFileState.OTHER, '>', KmersFromFileState.ID);
         return stateChanger;
     }
 

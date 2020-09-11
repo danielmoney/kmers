@@ -7,6 +7,7 @@ import Kmers.KmerStream;
 import Reads.ReadPos;
 
 import java.io.*;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Spliterator;
 import java.util.function.BiFunction;
@@ -48,6 +49,11 @@ public class KmersFromFile<D>
     public static KmersFromFile<ReadPos> getFQtoReadDBInstance(int minK, int maxK, ReadIDMapping readMap)
     {
         return new KmersFromFile<>(KmersFromFileStateChanger.getFQinstance(), minK, maxK, (s,i) -> new ReadPos(readMap.geNext(s), i));
+    }
+
+    public static KmersFromFile<Integer> getOldtoRefDBInstance(int minK, int maxK)
+    {
+        return new KmersFromFile<>(KmersFromFileStateChanger.getOldinstance(),minK,maxK,(s, i) -> Integer.parseInt(s));
     }
 
 

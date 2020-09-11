@@ -58,6 +58,7 @@ public class MakeDatabase
         dbtype.addOption(Option.builder("a").desc("Input is in FATSA format").build());
         dbtype.addOption(Option.builder("q").desc("Input is in FASTQ format").build());
         dbtype.addOption(Option.builder("p").desc("Input is in preprocessed format").build());
+        dbtype.addOption(Option.builder("O").desc("Input is in old internal format").build());
         dbtype.isRequired();
         options.addOptionGroup(dbtype);
 
@@ -88,25 +89,32 @@ public class MakeDatabase
         }
 
 
-        if (commands.hasOption('a'))
+        if (commands.hasOption('a') || commands.hasOption('O'))
         {
             // True is to include reverse complement - should have as a optional param as well?
             FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
 
             KmersFromFile<Integer> kf;
-            if (commands.hasOption('m'))
+            if (commands.hasOption('a'))
             {
-                BufferedReader br = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('m')));
-                Map<String, Integer> map = new HashMap<>();
-                br.lines().forEach(line -> {
-                    String[] parts = line.split("\t");
-                    map.put(parts[0], Integer.parseInt(parts[1]));
-                });
-                kf = KmersFromFile.getFAtoRefDBInstance(j, k, map);
+                if (commands.hasOption('m'))
+                {
+                    BufferedReader br = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('m')));
+                    Map<String, Integer> map = new HashMap<>();
+                    br.lines().forEach(line -> {
+                        String[] parts = line.split("\t");
+                        map.put(parts[0], Integer.parseInt(parts[1]));
+                    });
+                    kf = KmersFromFile.getFAtoRefDBInstance(j, k, map);
+                }
+                else
+                {
+                    kf = KmersFromFile.getFAtoRefDBInstance(j, k);
+                }
             }
             else
             {
-                kf = KmersFromFile.getFAtoRefDBInstance(j, k);
+                kf = KmersFromFile.getOldtoRefDBInstance(j,k);
             }
 
             BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
@@ -145,6 +153,7 @@ public class MakeDatabase
             for (String index: in.indexes())
             {
                 ex.submit(new ProcessIndex(dbc,in,j,k,commands,index, progress));
+//                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
             }
 
             ex.shutdown();

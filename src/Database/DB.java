@@ -12,8 +12,7 @@ import Kmers.KmerStream;
 import Streams.StreamUtils;
 
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,7 +33,7 @@ public class DB<D>
         this.dataType = files.get(0).getDataType();
         for (KmerFile<D> f: files)
         {
-            if (f.getDataType() != this.dataType)
+            if (!Arrays.equals(f.getDataType().getID(), this.dataType.getID()))
             {
                 throw new InconsistentDataException("Files contain different datatypes");
             }
@@ -80,7 +79,7 @@ public class DB<D>
 
         boolean quick = ((searchKmers.getMinLength() == searchKmers.getMaxLength()) && (maxDiff == 0)); //Quick match
 
-        Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.onlyStandard().stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
+        Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
         ProcessCommonSpliterator<S> spliterator = new ProcessCommonSpliterator<>(groupedStream, maxDiff, just, quick, searchKmers.getMinLength(), searchKmers.getMaxLength());
         return new KmerStream<>(
                 StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).flatMap(l -> l.stream()). map(kwd -> mapToResult(kwd)),
@@ -133,6 +132,8 @@ public class DB<D>
 
     private <S> List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just, int minK, int maxK)
     {
+//        long start = System.currentTimeMillis();
+
         List<ClosestInfoCollector<D>> currentBest = new ArrayList<>(kmers.size());
 
         for (KmerWithData<S> k: kmers)
@@ -169,6 +170,8 @@ public class DB<D>
             }
         }
 
+//        System.out.println(kmers.get(0).getKmer() + "\t" + Arrays.toString(keybytes) + "\t" + (System.currentTimeMillis() - start));
+
         List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>> ret = new ArrayList<>(kmers.size());
 
         for (int i = 0; i < kmers.size(); i++)
@@ -185,13 +188,15 @@ public class DB<D>
         private ProcessCommonSpliterator(Stream<List<KmerWithData<S>>> inputStream, int maxDiff, boolean just, boolean quick, int minK, int maxK)
         {
             this.input = inputStream.iterator();
-            ex = new LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>();
+            //ex = new LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>();
+            ex = Executors.newFixedThreadPool(threads);
             futures = new LinkedList<>();
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < threads; i++)
             {
                 if (input.hasNext())
                 {
                     List<KmerWithData<S>> l = input.next();
+//                    System.out.println("*"+l.get(0).getKmer());
                     if (quick)
                     {
                         futures.add(ex.submit(() -> quickMatchCommonKey(l, maxDiff)));
@@ -216,6 +221,7 @@ public class DB<D>
                 try
                 {
                     Future<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> future = futures.poll();
+//                    System.out.println("Done another");
                     if (input.hasNext())
                     {
                         List<KmerWithData<S>> l = input.next();
@@ -237,11 +243,13 @@ public class DB<D>
                 catch (InterruptedException e)
                 {
                     // Shouldn't get here in the normal course of things so....
+                    System.out.println(e);
                     throw new RuntimeException(e);
                 }
                 catch (ExecutionException e)
                 {
                     // or here...
+                    System.out.println(e);
                     throw new RuntimeException(e);
                 }
                 return true;
@@ -272,6 +280,7 @@ public class DB<D>
             try
             {
                 ex.shutdown();
+                ex.awaitTermination(2400, TimeUnit.DAYS);
             }
             catch (InterruptedException e)
             {
@@ -279,9 +288,10 @@ public class DB<D>
             }
         }
 
-        LinkedList<Future<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>> futures;
-        Iterator<List<KmerWithData<S>>> input;
-        LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> ex;
+        private LinkedList<Future<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>> futures;
+        private Iterator<List<KmerWithData<S>>> input;
+//        private LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> ex;
+        ExecutorService ex;
         private int maxDiff;
         private boolean just;
         private boolean quick;
@@ -296,4 +306,11 @@ public class DB<D>
     private int maxLength;
     private List<KmerFile<D>> files;
     private int maxKey;
+
+    public void setThreads(int threads)
+    {
+        this.threads = threads;
+    }
+
+    private int threads = Runtime.getRuntime().availableProcessors() - 1;
 }

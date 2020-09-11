@@ -51,7 +51,7 @@ public class DataPairDataType<A,B> implements DataType<DataPair<A,B>>
 
     public DataPair<A,B> fromString(String s)
     {
-        String parts[] = s.split(Pattern.quote(seperator));
+        String parts[] = s.split(Pattern.quote(seperator),2);
         return new DataPair<>(aDataType.fromString(parts[0]), bDataType.fromString(parts[1]));
     }
 

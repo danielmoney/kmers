@@ -54,17 +54,18 @@ public class Matcher
 
         int z = Integer.parseInt(commands.getOptionValue('z', "5"));
 
-        if (commands.hasOption("t"))
-        {
-            LimitedQueueExecutor.setDefaultNumberThreads(Integer.parseInt(commands.getOptionValue('t')));
-        }
-
         List<KmerFile<TreeCountMap<Integer>>> dbfiles = new LinkedList<>();
         for (String s: commands.getOptionValues('d'))
         {
             dbfiles.add(new KmerFile<>(new File(s), new CountDataType()));
         }
         DB<TreeCountMap<Integer>> db = new DB<>(dbfiles);
+
+        if (commands.hasOption("t"))
+        {
+//            LimitedQueueExecutor.setDefaultNumberThreads(Integer.parseInt(commands.getOptionValue('t')));
+            db.setThreads(Integer.parseInt(commands.getOptionValue('t')));
+        }
 
         File f = new File(commands.getOptionValue('i'));
 
@@ -92,8 +93,8 @@ public class Matcher
 
         KmerFile.MetaData meta = KmerFile.getMetaData(f);
 
-        int minK = Integer.parseInt(commands.getOptionValue('l',Integer.toString(meta.minLength)));
-        int maxK = Integer.parseInt(commands.getOptionValue('k',Integer.toString(meta.maxLength)));
+        int minK = Integer.parseInt(commands.getOptionValue('k',Integer.toString(meta.minLength)));
+        int maxK = Integer.parseInt(commands.getOptionValue('K',Integer.toString(meta.maxLength)));
 
         SetDataType<ReadPos> readDT = new SetDataType<>(new ReadPosDataType());
         //if (dataID == 1026) // If reads file against db

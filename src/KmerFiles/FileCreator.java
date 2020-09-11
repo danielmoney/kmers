@@ -31,7 +31,7 @@ public class FileCreator<I,O> implements AutoCloseable
                        DataCollector<I,O> dataCollector, boolean rc) throws IOException
     {
         this.dbFileTemp = dbFileTemp;
-        dbFileTemp.deleteOnExit();
+//        dbFileTemp.deleteOnExit();
 
         maxkey = 1;
         for (int i = 0; i < keyLength; i++)
@@ -167,6 +167,7 @@ public class FileCreator<I,O> implements AutoCloseable
 
         out.close();
         tempIn.close();
+        dbFileTemp.delete();
     }
 
     public void close() throws Exception

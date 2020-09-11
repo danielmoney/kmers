@@ -46,6 +46,9 @@ public class SeqToTaxID
         options.addOption(Option.builder("T").hasArg().desc("Taxonomy ID column").build());
         options.addOption(Option.builder("I").hasArg().desc("Number of header lines to ignore").build());
 
+        options.addOption(Option.builder("l").hasArg().desc("Key length").build());
+        options.addOption(Option.builder("c").hasArg().desc("Cache sizeh").build());
+
         CommandLineParser parser = new DefaultParser();
 
         //Obviously neeed to do something better here than just throw the ParseException!
