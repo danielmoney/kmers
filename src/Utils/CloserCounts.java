@@ -21,8 +21,17 @@ public class CloserCounts
 //        ResultsDataType<TreeCountMap<Integer>, TreeCountMap<Integer>> rdt = ResultsDataType.getReferenceReferenceInstance();
 //        ResultsFile<TreeCountMap<Integer>, TreeCountMap<Integer>> in = new ResultsFile<>(new File(args[0]), rdt);
 
-        ResultsDataType<Set<ReadPos>, TreeCountMap<Integer>> rdt = ResultsDataType.getReadReferenceInstance();
-        ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File(args[0]), rdt);
+
+        ResultsDataType<?, TreeCountMap<Integer>> rdt;
+        if ((args.length == 4) && (args[3].equals("ref")))
+        {
+            rdt = ResultsDataType.getReferenceReferenceInstance();
+        }
+        else
+        {
+            rdt = ResultsDataType.getReadReferenceInstance();
+        }
+        ResultsFile<?, TreeCountMap<Integer>> in = new ResultsFile<>(new File(args[0]), rdt);
 
         TwoKeyTreeCountMap<Integer,Integer> count = new TwoKeyTreeCountMap<>();
         Integer taxA = Integer.valueOf(args[1]);
@@ -45,7 +54,7 @@ public class CloserCounts
 
     public static void updateCount(TwoKeyTreeCountMap<Integer, Integer> count,
 //                                   KmerWithData<DataPair<TreeCountMap<Integer>, Set<DataPair<KmerDiff, TreeCountMap<Integer>>>>> kwd,
-                                   KmerWithData<DataPair<Set<ReadPos>, Set<DataPair<KmerDiff, TreeCountMap<Integer>>>>> kwd,
+                                   KmerWithData<? extends DataPair<?, Set<DataPair<KmerDiff, TreeCountMap<Integer>>>>> kwd,
                                    Integer taxA, Integer taxB)
     {
         Integer minTaxA = Integer.MAX_VALUE;
