@@ -173,7 +173,7 @@ public class Tree
             }
             current = newcurrent;
         }
-            return this.taxa.get(current.get(0));
+        return this.taxa.get(current.get(0));
     }
 
     public Taxa getLCA(Taxa t1, Taxa t2)

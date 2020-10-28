@@ -1,8 +1,14 @@
+import Compression.IntCompressor;
 import CountMaps.CountMap;
+import IndexedFiles.*;
 import Kmers.*;
 
+import java.io.File;
+import java.lang.reflect.Array;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Testing
 {
@@ -356,9 +362,43 @@ public class Testing
 //
 //        kf.streamFromFile(ZipOrNot.getBufferedReader(new File("GCA_000001905.1_Loxafr3.0_genomic.fna.gz"))).limit(100).forEach(kwd -> System.out.println(kwd));
 
-        Kmer k = new Kmer("ACTTCA");
+//        Kmer k = new Kmer("ACTTCA");
+//
+//        System.out.println(k.isOwnRC());
 
-        System.out.println(k.isOwnRC());
+//        String s = "1TB";
+//
+//        Pattern p = Pattern.compile("([0-9\\.]+)([kMGT])?B?");
+//        Matcher m = p.matcher(s);
+//        System.out.println(m.matches());
+//        System.out.println(m.group(1));
+//        System.out.println(m.group(2));
+//
+//        System.out.println(SizeConvertor.fromHuman(s));
+
+//        IndexedOutputFileSet<Integer> set = new IndexedOutputFileSet<>(f -> new StandardIndexedOutputFile<>(f, new IntCompressor(), true, 51),
+//                new File("settest"));
+
+        IndexedOutputFileSet<Integer> set = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f, new IntCompressor(), true, 5, 148),
+                new File("settest"));
+
+        byte[] w = new byte[8];
+        Arrays.fill(w,(byte) 65);
+        w[7] = '\n';
+
+        set.write(w, 0);
+        set.write(w, 0);
+        set.close();
+
+        List<IndexedInputFile<Integer>> list = new ArrayList<>(2);
+        list.add(new ZippedIndexedInputFile<>(new File("settest.1"), new IntCompressor()));
+        list.add(new ZippedIndexedInputFile<>(new File("settest.2"), new IntCompressor()));
+
+        IndexedInputFileSet<Integer> inset = new IndexedInputFileSet(list);
+
+        inset.lines(0).forEach(s -> System.out.println(s));
+
+        System.out.println(Arrays.toString(inset.data(0)));
 
         System.out.println(sdf.format(new Date()));
     }

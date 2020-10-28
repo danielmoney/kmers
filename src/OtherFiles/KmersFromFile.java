@@ -51,6 +51,11 @@ public class KmersFromFile<D>
         return new KmersFromFile<>(KmersFromFileStateChanger.getFQinstance(), minK, maxK, (s,i) -> new ReadPos(readMap.geNext(s), i));
     }
 
+    public static KmersFromFile<Void> getFQtoCountInstance(int k)
+    {
+        return new KmersFromFile<>(KmersFromFileStateChanger.getFQinstance(), k, k, (s,i) -> null);
+    }
+
     public static KmersFromFile<Integer> getOldtoRefDBInstance(int minK, int maxK)
     {
         return new KmersFromFile<>(KmersFromFileStateChanger.getOldinstance(),minK,maxK,(s, i) -> Integer.parseInt(s));

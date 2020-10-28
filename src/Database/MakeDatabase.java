@@ -10,6 +10,7 @@ import DataTypes.DataPair;
 import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
 import Exceptions.InconsistentDataException;
+import Files.SizeConvertor;
 import IndexedFiles.*;
 import KmerFiles.FileCreator;
 import Kmers.*;
@@ -73,6 +74,8 @@ public class MakeDatabase
 
         options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
 
+        options.addOption(Option.builder("S").hasArg().desc("Maximu file size").build());
+
         CommandLineParser parser = new DefaultParser();
 
         //Obviously neeed to do something better here than just throw the ParseException!
@@ -82,8 +85,13 @@ public class MakeDatabase
         int l = Integer.parseInt(commands.getOptionValue('l',"6"));
         int c = Integer.parseInt(commands.getOptionValue('c',"1000"));
 
+        long maxSize = Long.MAX_VALUE;
+        if (commands.hasOption('S'))
+        {
+            maxSize = SizeConvertor.fromHuman(commands.getOptionValue('S'));
+        }
 
-        if (commands.hasOption("t"))
+        if (commands.hasOption('t'))
         {
             LimitedQueueExecutor.setDefaultNumberThreads(Integer.parseInt(commands.getOptionValue('t')));
         }
@@ -92,7 +100,7 @@ public class MakeDatabase
         if (commands.hasOption('a') || commands.hasOption('O'))
         {
             // True is to include reverse complement - should have as a optional param as well?
-            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true, maxSize);
 
             KmersFromFile<Integer> kf;
             if (commands.hasOption('a'))
@@ -121,11 +129,11 @@ public class MakeDatabase
 
             filterAndAdd(kf.streamFromFile(in), dbc, commands);
 
-            create(dbc, commands);
+            create(dbc, commands, maxSize);
         }
         if (commands.hasOption('q'))
         {
-            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getReadPosInstance(), false);
+            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getReadPosInstance(), false, maxSize);
 
             PrintWriter outReadMap = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(
                     new FileOutputStream(new File(commands.getOptionValue('r')))))));
@@ -138,11 +146,11 @@ public class MakeDatabase
 
             filterAndAdd(kf.streamFromFile(in), dbc, commands);
 
-            create(dbc,commands);
+            create(dbc,commands,maxSize);
         }
         if (commands.hasOption('p'))
         {
-            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true);
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true, maxSize);
 
             IndexedInputFile<String> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new StringCompressor());
 
@@ -158,7 +166,7 @@ public class MakeDatabase
 
             ex.shutdown();
 
-            create(dbc,commands);
+            create(dbc,commands,maxSize);
         }
 
         System.out.println(sdf.format(new Date()));
@@ -212,19 +220,23 @@ public class MakeDatabase
         dbc.addKmers(kstream);
     }
 
-    private static <D> void create(FileCreator<D,?> dbc, CommandLine commands) throws Exception
+    private static <D> void create(FileCreator<D,?> dbc, CommandLine commands, long maxSize) throws Exception
     {
-        IndexedOutputFile<Integer> out;
+        IndexedOutputFileSet<Integer> out;
         try
         {
             if (commands.hasOption('Z'))
             {
-                out = new StandardIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(), commands.hasOption('h'));
+                //out = new StandardIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(), commands.hasOption('h'));
+                out = new IndexedOutputFileSet<>(f -> new StandardIndexedOutputFile<>(f, new IntCompressor(), commands.hasOption('h'), maxSize),
+                        new File(commands.getOptionValue('o')));
             }
             else
             {
-                out = new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(), commands.hasOption('h'),
-                        Integer.parseInt(commands.getOptionValue('z',"5")));
+                out = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f, new IntCompressor(), commands.hasOption('h'),
+                        Integer.parseInt(commands.getOptionValue('z',"5")), maxSize), new File(commands.getOptionValue('o')));
+//                out = new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(), commands.hasOption('h'),
+//                        Integer.parseInt(commands.getOptionValue('z',"5")));
             }
         }
         catch (FileAlreadyExistsException ex)

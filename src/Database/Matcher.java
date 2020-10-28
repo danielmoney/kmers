@@ -57,7 +57,22 @@ public class Matcher
         List<KmerFile<TreeCountMap<Integer>>> dbfiles = new LinkedList<>();
         for (String s: commands.getOptionValues('d'))
         {
-            dbfiles.add(new KmerFile<>(new File(s), new CountDataType()));
+            File f = new File(s);
+            if (f.exists())
+            {
+                dbfiles.add(new KmerFile<>(f, new CountDataType()));
+            }
+            else
+            {
+                int i = 1;
+                f = new File(s + "." + i);
+                while (f.exists())
+                {
+                    dbfiles.add(new KmerFile<>(f, new CountDataType()));
+                    i ++;
+                    f = new File(s + "." + i);
+                }
+            }
         }
         DB<TreeCountMap<Integer>> db = new DB<>(dbfiles);
 
@@ -67,7 +82,26 @@ public class Matcher
             db.setThreads(Integer.parseInt(commands.getOptionValue('t')));
         }
 
-        File f = new File(commands.getOptionValue('i'));
+
+        List<File> searchfiles = new LinkedList<>();
+        String s = commands.getOptionValue('i');
+        File f = new File(s);
+        if (f.exists())
+        {
+            searchfiles.add(f);
+        }
+        else
+        {
+            int i = 1;
+            f = new File(s + "." + i);
+            while (f.exists())
+            {
+                searchfiles.add(f);
+                i ++;
+                f = new File(s + "." + i);
+            }
+        }
+        //File f = new File(commands.getOptionValue('i'));
 
         PrintWriter out;
         if (commands.hasOption('Z'))
@@ -91,7 +125,8 @@ public class Matcher
 
         //int[] dataID = KmerFile.getDataID(f);
 
-        KmerFile.MetaData meta = KmerFile.getMetaData(f);
+//        KmerFile.MetaData meta = KmerFile.getMetaData(f);
+        KmerFile.MetaData meta = KmerFile.getMetaData(searchfiles.get(0));
 
         int minK = Integer.parseInt(commands.getOptionValue('k',Integer.toString(meta.minLength)));
         int maxK = Integer.parseInt(commands.getOptionValue('K',Integer.toString(meta.maxLength)));
@@ -106,14 +141,28 @@ public class Matcher
             //KmerWithDataDatatType<DataPair<Set<ReadPos>, ClosestInfoCollector<TreeCountMap<Integer>>>> kwdt = new KmerWithDataDatatType<>(rest);
 //            KmerWithDataDataType<DataPair<Set<ReadPos>, Set<DataPair<KmerDiff,TreeCountMap<Integer>>>>> kwdt = new KmerWithDataDataType<>(rest, "\t");
 
-            doMatching(new KmerFile<>(f, readDT), db, out, ResultsDataType.getReadReferenceInstance(),
+            List<KmerFile<Set<ReadPos>>> sfiles = new ArrayList<>();
+            for (File sf: searchfiles)
+            {
+                sfiles.add(new KmerFile<>(sf, readDT));
+            }
+
+            //doMatching(new KmerFile<>(f, readDT), db, out, ResultsDataType.getReadReferenceInstance(),
+            doMatching(sfiles, db, out, ResultsDataType.getReadReferenceInstance(),
                     maxDiff, just, minK, maxK);
         }
 
         CountDataType referenceDT = new CountDataType();
         if (Arrays.equals(meta.dataID, referenceDT.getID()))
         {
-            doMatching(new KmerFile<>(f, referenceDT), db, out, ResultsDataType.getReferenceReferenceInstance(),
+            List<KmerFile<TreeCountMap<Integer>>> sfiles = new ArrayList<>();
+            for (File sf: searchfiles)
+            {
+                sfiles.add(new KmerFile<>(sf, referenceDT));
+            }
+
+//            doMatching(new KmerFile<>(f, referenceDT), db, out, ResultsDataType.getReferenceReferenceInstance(),
+            doMatching(sfiles, db, out, ResultsDataType.getReferenceReferenceInstance(),
                     maxDiff, just, minK, maxK);
         }
 
@@ -122,14 +171,15 @@ public class Matcher
         System.out.println(sdf.format(new Date()));
     }
 
-    private static <S,M> void doMatching(KmerFile<S> searchFile, DB<M> db, PrintWriter out,
+    private static <S,M> void doMatching(List<KmerFile<S>> searchFiles, DB<M> db, PrintWriter out,
                                          //KmerWithDataDatatType<DataPair<S, ClosestInfoCollector<M>>> kwdt,
                                          //KmerWithDataDataType<DataPair<S, Set<DataPair<KmerDiff,M>>>> kwdt,
                                          ResultsDataType<S,M> kwdt,
                                          int maxDiff, boolean just, int minK, int maxK) throws InconsistentDataException
     {
         //KmerStream<S> searchStream = searchFile.allKmers();
-        KmerStream<S> searchStream = searchFile.allRestrictedKmers(minK,maxK);
+//        KmerStream<S> searchStream = searchFile.allRestrictedKmers(minK,maxK);
+        KmerStream<S> searchStream = KmerStream.concatenateStreams(searchFiles.stream().map(sf -> sf.allRestrictedKmers(minK, maxK)));
 
         KmerStream<DataPair<S, Set<DataPair<KmerDiff,M>>>> resultStream =
                 db.getNearestKmers(searchStream, maxDiff, just).filter(kwd -> !kwd.getData().getB().isEmpty());

@@ -47,7 +47,7 @@ public class SeqToTaxID
         options.addOption(Option.builder("I").hasArg().desc("Number of header lines to ignore").build());
 
         options.addOption(Option.builder("l").hasArg().desc("Key length").build());
-        options.addOption(Option.builder("c").hasArg().desc("Cache sizeh").build());
+        options.addOption(Option.builder("c").hasArg().desc("Cache size").build());
 
         CommandLineParser parser = new DefaultParser();
 

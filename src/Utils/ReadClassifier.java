@@ -14,28 +14,53 @@ import IndexedFiles.ZippedIndexedInputFile;
 import IndexedFiles.ZippedIndexedOutputFile;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
+import org.apache.commons.cli.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.Callable;
 
 public class ReadClassifier
 {
-    public static void main(String[] args) throws IOException, InterruptedException
+    public static void main(String[] args) throws IOException, InterruptedException, ParseException
     {
+        /*
+        -i  Input file
+        -o  Output file
+        -t  Threads
+         */
+        System.out.println(sdf.format(new Date()));
+
+        Options options = new Options();
+        options.addOption(Option.builder("i").required().hasArg().desc("Input file").build());
+        options.addOption(Option.builder("o").required().hasArg().desc("Output file").build());
+
+        options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
+
+        CommandLineParser parser = new DefaultParser();
+
+        //Obviously neeed to do something better here than just throw the ParseException!
+        CommandLine commands = parser.parse(options, args);
+
         DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt = new DataPairDataType<>(new ReadPosDataType(),
                 new MapDataType<>(new IntDataType(), new CountDataType("x","|")), "\t");
 
-        IndexedInputFile<Integer> in = new ZippedIndexedInputFile<>(new File("reads.gz"), new IntCompressor());
+        IndexedInputFile<Integer> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new IntCompressor());
 
         ListOrderedIndexedOutput<Integer> out = new ListOrderedIndexedOutput<>(
-                new ZippedIndexedOutputFile<>(new File("classified.gz"), new IntCompressor(),true,5),
+                new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(),true,5),
                 in.indexes());
 
-        LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>(1,1);
+        if (commands.hasOption('t'))
+        {
+            LimitedQueueExecutor.setDefaultNumberThreads(Integer.parseInt(commands.getOptionValue('t')));
+        }
+
+        LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
 
         for (Integer index: in.indexes())
         {
@@ -44,8 +69,12 @@ public class ReadClassifier
 
         ex.shutdown();
 
+//        (new ProcessIndex(in, 0, idt, out)).call();
+
         out.close();
         in.close();
+
+        System.out.println(sdf.format(new Date()));
     }
 
     private static class ProcessIndex implements Callable<Void>
@@ -72,7 +101,10 @@ public class ReadClassifier
             {
                 data = idt.fromString(inData.next());
                 curRead = data.getA().getRead();
-                taxids.add(data.getB().get(0).keySet());
+                if (data.getB().containsKey(0))
+                {
+                    taxids.add(data.getB().get(0).keySet());
+                }
             }
 
             while (inData.hasNext())
@@ -88,7 +120,10 @@ public class ReadClassifier
                      curRead = data.getA().getRead();
                      taxids = new LinkedList<>();
                  }
-                 taxids.add(data.getB().get(0).keySet());
+                 if (data.getB().containsKey(0))
+                 {
+                     taxids.add(data.getB().get(0).keySet());
+                 }
             }
 
             Integer call = processRead(taxids);
@@ -178,4 +213,6 @@ public class ReadClassifier
         private DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt;
         private ListOrderedIndexedOutput<Integer> out;
     }
+
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss\t");
 }

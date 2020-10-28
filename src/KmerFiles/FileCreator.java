@@ -18,9 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collector;
 
@@ -28,7 +26,7 @@ public class FileCreator<I,O> implements AutoCloseable
 {
     public FileCreator(File dbFileTemp,
                        int keyLength, int maxKmerLength, int cacheSize,
-                       DataCollector<I,O> dataCollector, boolean rc) throws IOException
+                       DataCollector<I,O> dataCollector, boolean rc, long maxSize) throws IOException
     {
         this.dbFileTemp = dbFileTemp;
 //        dbFileTemp.deleteOnExit();
@@ -39,7 +37,10 @@ public class FileCreator<I,O> implements AutoCloseable
             maxkey *= 4;
         }
 
-        fileCache = new IntegerIndexedOutputFileCache(maxkey,cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
+        fileSet = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f,new IntCompressor(),false,5,maxSize), dbFileTemp);
+        fileCache = new IntegerIndexedOutputFileCache(maxkey,cacheSize,fileSet);
+
+//        fileCache = new IntegerIndexedOutputFileCache(maxkey,cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
 //        fileCache = new IndexedOutputFileCache2<>(cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
 
         this.keyLength = keyLength;
@@ -110,11 +111,18 @@ public class FileCreator<I,O> implements AutoCloseable
         }
     }
 
-    public void create(IndexedOutputFile<Integer> out, boolean hr) throws Exception
+    public void create(IndexedOutputFileSet<Integer> out, boolean hr) throws Exception
     {
         fileCache.close();
 
-        IndexedInputFile<Integer> tempIn = new ZippedIndexedInputFile<>(dbFileTemp, new IntCompressor());
+        List<IndexedInputFile<Integer>> fileList = new ArrayList<>();
+        for (File f: fileSet.getCreated())
+        {
+            fileList.add(new ZippedIndexedInputFile<>(f, new IntCompressor()));
+        }
+
+        //IndexedInputFile<Integer> tempIn = new ZippedIndexedInputFile<>(dbFileTemp, new IntCompressor());
+        IndexedInputFileSet<Integer> tempIn = new IndexedInputFileSet<>(fileList);
 
         LimitedQueueExecutor<Void> exec = new LimitedQueueExecutor<>();
 
@@ -157,7 +165,7 @@ public class FileCreator<I,O> implements AutoCloseable
             sb.append("\n");
             meta = sb.toString().getBytes();
         }
-        out.write(meta,-1);
+        out.writeAll(meta,-1);
 
         OutputProgress progress = new OutputProgress("%4d/" + maxkey + " output indexes completed.");
 
@@ -172,7 +180,11 @@ public class FileCreator<I,O> implements AutoCloseable
 
         out.close();
         tempIn.close();
-        dbFileTemp.delete();
+//        dbFileTemp.delete();
+        for (File f: fileSet.getCreated())
+        {
+            f.delete();
+        }
     }
 
     public void close() throws Exception
@@ -209,7 +221,8 @@ public class FileCreator<I,O> implements AutoCloseable
 
     private static class MakeAndWriteKey<I,O,A> implements Callable<Void>
     {
-        private MakeAndWriteKey(IndexedInputFile<Integer> in, int index, OrderedIndexedOutput out, int maxKmerLength, DataType<I> inputCompressor,
+        //private MakeAndWriteKey(IndexedInputFile<Integer> in, int index, OrderedIndexedOutput out, int maxKmerLength, DataType<I> inputCompressor,
+        private MakeAndWriteKey(IndexedInputFileSet<Integer> in, int index, OrderedIndexedOutput out, int maxKmerLength, DataType<I> inputCompressor,
                                 DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr, OutputProgress progress)
         {
             this.in = in;
@@ -352,7 +365,7 @@ public class FileCreator<I,O> implements AutoCloseable
 
         private Collector<I, A, O> collector;
 
-        private IndexedInputFile<Integer> in;
+        private IndexedInputFileSet<Integer> in;
         private int index;
         private OrderedIndexedOutput out;
         private int maxKmerLength;
@@ -376,4 +389,5 @@ public class FileCreator<I,O> implements AutoCloseable
     private int keyLength;
     private int maxkey;
     private IndexedOutputFileCache<Integer> fileCache;
+    private IndexedOutputFileSet<Integer> fileSet;
 }

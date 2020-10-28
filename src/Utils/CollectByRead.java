@@ -16,15 +16,14 @@ import Kmers.KmerDiff;
 import Kmers.KmerWithData;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
+import org.apache.commons.cli.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -32,10 +31,27 @@ public class CollectByRead
 {
     public static void main(String[] args) throws Exception
     {
-        ResultsDataType<Set<ReadPos>, TreeCountMap<Integer>> rdt = ResultsDataType.getReadReferenceInstance();
-        ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File("test.gz"), rdt);
+        /*
+        -i  Input file
+        -o  Output gile
+         */
+        System.out.println(sdf.format(new Date()));
 
-        File tmpFile = new File("reads.gz.tmp");
+        Options options = new Options();
+
+        options.addOption(Option.builder("i").required().hasArg().desc("Input file").build());
+        options.addOption(Option.builder("o").required().hasArg().desc("Output file").build());
+
+        CommandLineParser parser = new DefaultParser();
+
+        //Obviously neeed to do something better here than just throw the ParseException!
+        CommandLine commands = parser.parse(options, args);
+
+        ResultsDataType<Set<ReadPos>, TreeCountMap<Integer>> rdt = ResultsDataType.getReadReferenceInstance();
+        ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File(commands.getOptionValue('i')), rdt);
+//        ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File("limited.gz"), rdt);
+
+        File tmpFile = new File(commands.getOptionValue('i') + ".tmp");
         ComparableIndexedOutputFileCache<Integer> cache = new ComparableIndexedOutputFileCache<>(1000,
                 new ZippedIndexedOutputFile<>(tmpFile,new IntCompressor(),true,5));
 
@@ -47,7 +63,7 @@ public class CollectByRead
 
         IndexedInputFile<Integer> in2 = new ZippedIndexedInputFile<>(tmpFile, new IntCompressor());
         ListOrderedIndexedOutput<Integer> out = new ListOrderedIndexedOutput<>(
-                new ZippedIndexedOutputFile<>(new File("reads.gz"), new IntCompressor(),true,5),
+                new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(),true,5),
                 in2.indexes());
 
         LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
@@ -63,6 +79,8 @@ public class CollectByRead
         in2.close();
 
         tmpFile.delete();
+
+        System.out.println(sdf.format(new Date()));
     }
 
     private static class ProcessIndex implements Callable<Void>
@@ -140,4 +158,6 @@ public class CollectByRead
             throw new UncheckedIOException(ex);
         }
     }
+
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss\t");
 }
