@@ -378,27 +378,27 @@ public class Testing
 
 //        IndexedOutputFileSet<Integer> set = new IndexedOutputFileSet<>(f -> new StandardIndexedOutputFile<>(f, new IntCompressor(), true, 51),
 //                new File("settest"));
-
-        IndexedOutputFileSet<Integer> set = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f, new IntCompressor(), true, 5, 148),
-                new File("settest"));
-
-        byte[] w = new byte[8];
-        Arrays.fill(w,(byte) 65);
-        w[7] = '\n';
-
-        set.write(w, 0);
-        set.write(w, 0);
-        set.close();
-
-        List<IndexedInputFile<Integer>> list = new ArrayList<>(2);
-        list.add(new ZippedIndexedInputFile<>(new File("settest.1"), new IntCompressor()));
-        list.add(new ZippedIndexedInputFile<>(new File("settest.2"), new IntCompressor()));
-
-        IndexedInputFileSet<Integer> inset = new IndexedInputFileSet(list);
-
-        inset.lines(0).forEach(s -> System.out.println(s));
-
-        System.out.println(Arrays.toString(inset.data(0)));
+//
+//        IndexedOutputFileSet<Integer> set = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f, new IntCompressor(), true, 5, 148),
+//                new File("settest"));
+//
+//        byte[] w = new byte[8];
+//        Arrays.fill(w,(byte) 65);
+//        w[7] = '\n';
+//
+//        set.write(w, 0);
+//        set.write(w, 0);
+//        set.close();
+//
+//        List<IndexedInputFile<Integer>> list = new ArrayList<>(2);
+//        list.add(new ZippedIndexedInputFile<>(new File("settest.1"), new IntCompressor()));
+//        list.add(new ZippedIndexedInputFile<>(new File("settest.2"), new IntCompressor()));
+//
+//        IndexedInputFileSet<Integer> inset = new IndexedInputFileSet(list);
+//
+//        inset.lines(0).forEach(s -> System.out.println(s));
+//
+//        System.out.println(Arrays.toString(inset.data(0)));
 
         System.out.println(sdf.format(new Date()));
     }

@@ -39,7 +39,8 @@ public class ShortKmerCount
 
         int[] counts = new int[numPoss];
 
-        KmersFromFile<Void> kf = KmersFromFile.getFQtoCountInstance(32);
+        //KmersFromFile<Void> kf = KmersFromFile.getFQtoCountInstance(32);
+        KmersFromFile<Void> kf = KmersFromFile.getFQtoCountInstance(k);
 
         kf.streamFromFile(br).stream().mapToInt(kmer -> kmer.getKmer().key(k)).forEach(i -> counts[i] = counts[i] + 1);
 

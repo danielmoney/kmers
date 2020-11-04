@@ -40,6 +40,8 @@ public class Matcher
         options.addOption(Option.builder("K").hasArg().desc("Max kmer length").build());
         options.addOption(Option.builder("k").hasArg().desc("Min kmer length").build());
 
+        options.addOption(Option.builder("L").hasArg().desc("Limit keys").build());
+
         OptionGroup zipoptions = new OptionGroup();
         zipoptions.addOption(Option.builder("z").hasArg().desc("Zip compression level").build());
         zipoptions.addOption(Option.builder("Z").hasArg().desc("Unzipped output").build());
@@ -147,9 +149,28 @@ public class Matcher
                 sfiles.add(new KmerFile<>(sf, readDT));
             }
 
-            //doMatching(new KmerFile<>(f, readDT), db, out, ResultsDataType.getReadReferenceInstance(),
-            doMatching(sfiles, db, out, ResultsDataType.getReadReferenceInstance(),
-                    maxDiff, just, minK, maxK);
+            if (commands.hasOption('L'))
+            {
+                String[] parts = commands.getOptionValue('L').split("-");
+                int start = Integer.parseInt(parts[0]);
+                int end;
+                if (parts.length == 2)
+                {
+                    end = Integer.parseInt(parts[1]) + 1;
+                }
+                else
+                {
+                    end = start + 1;
+                }
+                doMatching(sfiles, db, out, ResultsDataType.getReadReferenceInstance(),
+                        maxDiff, just, minK, maxK, start, end);
+            }
+            else
+            {
+                //doMatching(new KmerFile<>(f, readDT), db, out, ResultsDataType.getReadReferenceInstance(),
+                doMatching(sfiles, db, out, ResultsDataType.getReadReferenceInstance(),
+                        maxDiff, just, minK, maxK);
+            }
         }
 
         CountDataType referenceDT = new CountDataType();
@@ -161,6 +182,23 @@ public class Matcher
                 sfiles.add(new KmerFile<>(sf, referenceDT));
             }
 
+            if (commands.hasOption('L'))
+            {
+                String[] parts = commands.getOptionValue('L').split("-");
+                int start = Integer.parseInt(parts[0]);
+                int end;
+                if (parts.length == 2)
+                {
+                    end = Integer.parseInt(parts[1]) + 1;
+                }
+                else
+                {
+                    end = start + 1;
+                }
+                doMatching(sfiles, db, out, ResultsDataType.getReferenceReferenceInstance(),
+                        maxDiff, just, minK, maxK, start, end);
+            }
+
 //            doMatching(new KmerFile<>(f, referenceDT), db, out, ResultsDataType.getReferenceReferenceInstance(),
             doMatching(sfiles, db, out, ResultsDataType.getReferenceReferenceInstance(),
                     maxDiff, just, minK, maxK);
@@ -169,6 +207,22 @@ public class Matcher
         out.close();
 
         System.out.println(sdf.format(new Date()));
+    }
+
+    private static <S,M> void doMatching(List<KmerFile<S>> searchFiles, DB<M> db, PrintWriter out,
+                                         //KmerWithDataDatatType<DataPair<S, ClosestInfoCollector<M>>> kwdt,
+                                         //KmerWithDataDataType<DataPair<S, Set<DataPair<KmerDiff,M>>>> kwdt,
+                                         ResultsDataType<S,M> kwdt,
+                                         int maxDiff, boolean just, int minK, int maxK,
+                                         int startKey, int endKey) throws InconsistentDataException
+    {
+        //KmerStream<S> searchStream = searchFile.allKmers();
+//        KmerStream<S> searchStream = searchFile.allRestrictedKmers(minK,maxK);
+        KmerStream<S> searchStream = KmerStream.concatenateStreams(searchFiles.stream().map(sf -> sf.restrictedKmers(startKey, endKey, minK, maxK)));
+
+        KmerStream<DataPair<S, Set<DataPair<KmerDiff,M>>>> resultStream =
+                db.getNearestKmers(searchStream, maxDiff, just).filter(kwd -> !kwd.getData().getB().isEmpty());
+        resultStream.forEach(kwd -> out.println(kwdt.toString(kwd)));
     }
 
     private static <S,M> void doMatching(List<KmerFile<S>> searchFiles, DB<M> db, PrintWriter out,

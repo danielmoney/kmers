@@ -53,6 +53,8 @@ public class MakeDatabase
 
         options.addOption(Option.builder("l").hasArg().desc("Key length").build());
 
+        options.addOption(Option.builder("L").hasArg().desc("Limit keys").build());
+
         options.addOption(Option.builder("c").hasArg().desc("Cache size").build());
 
         OptionGroup dbtype = new OptionGroup();
@@ -158,10 +160,35 @@ public class MakeDatabase
 
             OutputProgress progress = new OutputProgress("%3d/" + in.indexes().size() + " input indexes completed.");
 
-            for (String index: in.indexes())
+            if (commands.hasOption('L'))
             {
-                ex.submit(new ProcessIndex(dbc,in,j,k,commands,index, progress));
-//                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
+                String[] parts = commands.getOptionValue('L').split("-");
+                String start = parts[0];
+                String end;
+                if (parts.length == 2)
+                {
+                    end = parts[1];
+                }
+                else
+                {
+                    end = start;
+                }
+                for (String index : in.indexes())
+                {
+                    if ((index.compareTo(start) >= 0) && (index.compareTo(end) <= 0))
+                    {
+                        ex.submit(new ProcessIndex(dbc, in, j, k, commands, index, progress));
+                        //                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
+                    }
+                }
+            }
+            else
+            {
+                for (String index : in.indexes())
+                {
+                    ex.submit(new ProcessIndex(dbc, in, j, k, commands, index, progress));
+                    //                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
+                }
             }
 
             ex.shutdown();
