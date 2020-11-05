@@ -20,13 +20,15 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 import java.util.stream.Collector;
 
 public class FileCreator<I,O> implements AutoCloseable
 {
     public FileCreator(File dbFileTemp,
                        int keyLength, int maxKmerLength, int cacheSize,
-                       DataCollector<I,O> dataCollector, boolean rc, long maxSize) throws IOException
+                       DataCollector<I,O> dataCollector, boolean rc, long maxSize,
+                       boolean useExistingTemp) throws IOException
     {
         this.dbFileTemp = dbFileTemp;
 //        dbFileTemp.deleteOnExit();
@@ -169,14 +171,21 @@ public class FileCreator<I,O> implements AutoCloseable
 
         OutputProgress progress = new OutputProgress("%4d/" + maxkey + " output indexes completed.");
 
+        List<Future<Void>> futures = new ArrayList<>(maxkey);
+
         for (int i = 0; i < maxkey; i++)
         {
             //exec.submit(new MakeAndWriteKey<>(tempIn,i,orderedout, maxKmerLength, dataCollector.getDataDataType(),
-            exec.submit(new MakeAndWriteKey<>(tempIn,i,orderedout, maxK, dataCollector.getDataDataType(),
-                    dataCollector.getCollectionDataType(), dataCollector.getCollector(), hr, progress));
+            futures.add(exec.submit(new MakeAndWriteKey<>(tempIn,i,orderedout, maxK, dataCollector.getDataDataType(),
+                    dataCollector.getCollectionDataType(), dataCollector.getCollector(), hr, progress)));
         }
 
         exec.shutdown();
+
+        for (Future<Void> f: futures)
+        {
+            f.get();
+        }
 
         out.close();
         tempIn.close();
