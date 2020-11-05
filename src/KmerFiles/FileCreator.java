@@ -5,6 +5,7 @@ import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
 import Concurrent.OrderedIndexedOutput;
 import Concurrent.OutputProgress;
+import Counts.CountDataType;
 import DataTypes.DataCollector;
 import DataTypes.DataType;
 import Exceptions.InconsistentDataException;
@@ -39,8 +40,12 @@ public class FileCreator<I,O> implements AutoCloseable
             maxkey *= 4;
         }
 
-        fileSet = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f,new IntCompressor(),false,5,maxSize), dbFileTemp);
-        fileCache = new IntegerIndexedOutputFileCache(maxkey,cacheSize,fileSet);
+        this.useExistingTemp = useExistingTemp;
+        if (!useExistingTemp)
+        {
+            fileSet = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f, new IntCompressor(), false, 5, maxSize), dbFileTemp);
+            fileCache = new IntegerIndexedOutputFileCache(maxkey, cacheSize, fileSet);
+        }
 
 //        fileCache = new IntegerIndexedOutputFileCache(maxkey,cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
 //        fileCache = new IndexedOutputFileCache2<>(cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
@@ -115,13 +120,35 @@ public class FileCreator<I,O> implements AutoCloseable
 
     public void create(IndexedOutputFileSet<Integer> out, boolean hr) throws Exception
     {
-        fileCache.close();
-
         List<IndexedInputFile<Integer>> fileList = new ArrayList<>();
-        for (File f: fileSet.getCreated())
+        if (!useExistingTemp)
         {
-            fileList.add(new ZippedIndexedInputFile<>(f, new IntCompressor()));
+            fileCache.close();
+            for (File f: fileSet.getCreated())
+            {
+                fileList.add(new ZippedIndexedInputFile<>(f, new IntCompressor()));
+            }
         }
+        else
+        {
+            if (dbFileTemp.exists())
+            {
+                fileList.add(new ZippedIndexedInputFile<>(dbFileTemp, new IntCompressor()));
+            }
+            else
+            {
+                int i = 1;
+                File f = new File(dbFileTemp + "." + i);
+                while (f.exists())
+                {
+                    fileList.add(new ZippedIndexedInputFile<>(f, new IntCompressor()));
+                    i++;
+                    f = new File(dbFileTemp + "." + i);
+                }
+            }
+        }
+
+
 
         //IndexedInputFile<Integer> tempIn = new ZippedIndexedInputFile<>(dbFileTemp, new IntCompressor());
         IndexedInputFileSet<Integer> tempIn = new IndexedInputFileSet<>(fileList);
@@ -190,9 +217,20 @@ public class FileCreator<I,O> implements AutoCloseable
         out.close();
         tempIn.close();
 //        dbFileTemp.delete();
-        for (File f: fileSet.getCreated())
+        if (dbFileTemp.exists())
         {
-            f.delete();
+            dbFileTemp.delete();
+        }
+        else
+        {
+            int i = 1;
+            File f = new File(dbFileTemp + "." + i);
+            while (f.exists())
+            {
+                f.delete();
+                i++;
+                f = new File(dbFileTemp + "." + i);
+            }
         }
     }
 
@@ -200,7 +238,10 @@ public class FileCreator<I,O> implements AutoCloseable
     {
         try
         {
-            fileCache.close();
+            if (!useExistingTemp)
+            {
+                fileCache.close();
+            }
         }
         catch (IOException e)
         {
@@ -399,4 +440,6 @@ public class FileCreator<I,O> implements AutoCloseable
     private int maxkey;
     private IndexedOutputFileCache<Integer> fileCache;
     private IndexedOutputFileSet<Integer> fileSet;
+
+    private boolean useExistingTemp;
 }

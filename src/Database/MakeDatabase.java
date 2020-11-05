@@ -76,7 +76,9 @@ public class MakeDatabase
 
         options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
 
-        options.addOption(Option.builder("S").hasArg().desc("Maximu file size").build());
+        options.addOption(Option.builder("S").hasArg().desc("Maximum file size").build());
+
+        options.addOption(Option.builder("U").desc("Use existing temporary files").build());
 
         CommandLineParser parser = new DefaultParser();
 
@@ -86,6 +88,8 @@ public class MakeDatabase
         int j = Integer.parseInt(commands.getOptionValue('k',"24"));
         int l = Integer.parseInt(commands.getOptionValue('l',"6"));
         int c = Integer.parseInt(commands.getOptionValue('c',"1000"));
+
+        boolean useExistingTemp = commands.hasOption(('U'));
 
         long maxSize = Long.MAX_VALUE;
         if (commands.hasOption('S'))
@@ -102,96 +106,108 @@ public class MakeDatabase
         if (commands.hasOption('a') || commands.hasOption('O'))
         {
             // True is to include reverse complement - should have as a optional param as well?
-            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true, maxSize);
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c,
+                    DataCollector.getCountInstance(), true, maxSize, useExistingTemp);
 
-            KmersFromFile<Integer> kf;
-            if (commands.hasOption('a'))
+            if (!useExistingTemp)
             {
-                if (commands.hasOption('m'))
+                KmersFromFile<Integer> kf;
+                if (commands.hasOption('a'))
                 {
-                    BufferedReader br = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('m')));
-                    Map<String, Integer> map = new HashMap<>();
-                    br.lines().forEach(line -> {
-                        String[] parts = line.split("\t");
-                        map.put(parts[0], Integer.parseInt(parts[1]));
-                    });
-                    kf = KmersFromFile.getFAtoRefDBInstance(j, k, map);
+                    if (commands.hasOption('m'))
+                    {
+                        BufferedReader br = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('m')));
+                        Map<String, Integer> map = new HashMap<>();
+                        br.lines().forEach(line -> {
+                            String[] parts = line.split("\t");
+                            map.put(parts[0], Integer.parseInt(parts[1]));
+                        });
+                        kf = KmersFromFile.getFAtoRefDBInstance(j, k, map);
+                    }
+                    else
+                    {
+                        kf = KmersFromFile.getFAtoRefDBInstance(j, k);
+                    }
                 }
                 else
                 {
-                    kf = KmersFromFile.getFAtoRefDBInstance(j, k);
+                    kf = KmersFromFile.getOldtoRefDBInstance(j, k);
                 }
-            }
-            else
-            {
-                kf = KmersFromFile.getOldtoRefDBInstance(j,k);
-            }
 
-            BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
+                BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
 
-            filterAndAdd(kf.streamFromFile(in), dbc, commands);
+                filterAndAdd(kf.streamFromFile(in), dbc, commands);
+            }
 
             create(dbc, commands, maxSize);
         }
         if (commands.hasOption('q'))
         {
-            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getReadPosInstance(), false, maxSize);
+            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c,
+                    DataCollector.getReadPosInstance(), false, maxSize, useExistingTemp);
 
-            PrintWriter outReadMap = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(
-                    new FileOutputStream(new File(commands.getOptionValue('r')))))));
+            if (!useExistingTemp)
+            {
+                PrintWriter outReadMap = new PrintWriter(new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(
+                        new FileOutputStream(new File(commands.getOptionValue('r')))))));
 
-            ReadIDMapping map = new ReadIDMapping(outReadMap);
+                ReadIDMapping map = new ReadIDMapping(outReadMap);
 
-            KmersFromFile<ReadPos> kf = KmersFromFile.getFQtoReadDBInstance(j, k, map);
+                KmersFromFile<ReadPos> kf = KmersFromFile.getFQtoReadDBInstance(j, k, map);
 
-            BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
+                BufferedReader in = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('i')));
 
-            filterAndAdd(kf.streamFromFile(in), dbc, commands);
+                filterAndAdd(kf.streamFromFile(in), dbc, commands);
+            }
 
             create(dbc,commands,maxSize);
         }
         if (commands.hasOption('p'))
         {
-            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c, DataCollector.getCountInstance(), true, maxSize);
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c,
+                    DataCollector.getCountInstance(), true, maxSize, useExistingTemp);
 
-            IndexedInputFile<String> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new StringCompressor());
-
-            LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
-
-            OutputProgress progress = new OutputProgress("%3d/" + in.indexes().size() + " input indexes completed.");
-
-            if (commands.hasOption('L'))
+            if (!useExistingTemp)
             {
-                String[] parts = commands.getOptionValue('L').split("-");
-                String start = parts[0];
-                String end;
-                if (parts.length == 2)
+                IndexedInputFile<String> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new StringCompressor());
+
+                LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
+
+                OutputProgress progress = new OutputProgress("%3d/" + in.indexes().size() + " input indexes completed.");
+
+                if (commands.hasOption('L'))
                 {
-                    end = parts[1];
+                    String[] parts = commands.getOptionValue('L').split("-");
+                    String start = parts[0];
+                    String end;
+                    if (parts.length == 2)
+                    {
+                        end = parts[1];
+                    }
+                    else
+                    {
+                        end = start;
+                    }
+                    for (String index : in.indexes())
+                    {
+                        if ((index.compareTo(start) >= 0) && (index.compareTo(end) <= 0))
+                        {
+                            ex.submit(new ProcessIndex(dbc, in, j, k, commands, index, progress));
+                            //                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
+                        }
+                    }
                 }
                 else
                 {
-                    end = start;
-                }
-                for (String index : in.indexes())
-                {
-                    if ((index.compareTo(start) >= 0) && (index.compareTo(end) <= 0))
+                    for (String index : in.indexes())
                     {
                         ex.submit(new ProcessIndex(dbc, in, j, k, commands, index, progress));
                         //                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
                     }
                 }
-            }
-            else
-            {
-                for (String index : in.indexes())
-                {
-                    ex.submit(new ProcessIndex(dbc, in, j, k, commands, index, progress));
-                    //                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
-                }
-            }
 
-            ex.shutdown();
+                ex.shutdown();
+            }
 
             create(dbc,commands,maxSize);
         }
