@@ -1,14 +1,24 @@
 import Compression.IntCompressor;
 import CountMaps.CountMap;
 import IndexedFiles.*;
-import Kmers.*;
 
+import IndexedFiles2.BlockInputStream;
+import IndexedFiles2.IndexedInputFile2;
+
+import IndexedFiles2.IndexedOutputFile2;
+import Kmers.*;
+import Zip.ZipOrNot;
+
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
 
 public class Testing
 {
@@ -399,6 +409,37 @@ public class Testing
 //        inset.lines(0).forEach(s -> System.out.println(s));
 //
 //        System.out.println(Arrays.toString(inset.data(0)));
+
+        IndexedInputFile2<Integer> iif = new IndexedInputFile2(new File("test.db.gz.tmp"), new IntCompressor());
+        InputStream bis = iif.getInputStream(1);
+        int b = bis.read();
+        int c = 1;
+        System.out.print(c + "\t");
+        int r = 1;
+        while (b != -1)
+        {
+            System.out.print(b);
+            b = bis.read();
+            //if (b == 32)
+            if (r == 15)
+            {
+                c++;
+                r=1;
+                System.out.println();
+                System.out.print(c + "\t");
+            }
+            else
+            {
+                r++;
+                System.out.print(" ");
+            }
+        }
+
+        IndexedOutputFile2 iof;
+
+//        BufferedReader in = ZipOrNot.getBufferedReader(new File("test.db.gz.tmp"));
+//        System.out.println(in.readLine());
+
 
         System.out.println(sdf.format(new Date()));
     }

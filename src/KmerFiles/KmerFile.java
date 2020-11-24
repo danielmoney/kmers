@@ -7,14 +7,14 @@ import Exceptions.UnexpectedDataTypeException;
 import IndexedFiles.IndexedInputFile;
 import IndexedFiles.StandardIndexedInputFile;
 import IndexedFiles.ZippedIndexedInputFile;
+import IndexedFiles2.IndexedInputFile2;
 import Kmers.Kmer;
 import Kmers.KmerUtils;
 import Kmers.KmerWithData;
 import Kmers.KmerStream;
 import Zip.ZipOrNot;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Spliterator;
@@ -27,7 +27,7 @@ public class KmerFile<D>
 {
     public KmerFile(File file, MergeableDataType<D> dataType) throws IOException
     {
-        this.file = getIndexedInputFile(file);
+        this.file =  new IndexedInputFile2<>(file, new IntCompressor());
         this.dataType = dataType;
         this.meta = getMetaData(file);
         if (!Arrays.equals(meta.dataID,dataType.getID()))
@@ -36,35 +36,39 @@ public class KmerFile<D>
         }
     }
 
-    private Stream<KmerWithData<D>> getKmers(int key)
+    private Stream<KmerWithData<D>> getKmers(int minKey, int maxKey)
     {
-        if (file.isHumanReadable())
+        try
         {
-            return getUncompressedKmers(key);
+            if (file.isHumanReadable())
+            {
+                return StreamSupport.stream(new UncompressedKmerSpliterator<>(file.getInputStream(minKey,maxKey), dataType), false);
+            }
+            else
+            {
+                return StreamSupport.stream(new CompressedKmerSpliterator<>(file.getInputStream(minKey,maxKey), dataType), false);
+            }
         }
-        else
+        catch (IOException ex)
         {
-            return StreamSupport.stream(new CompressedKmerSpliterator<>(file.data(key), dataType), false);
+            throw new UncheckedIOException(ex);
         }
     }
 
     public KmerStream<D> kmers(int key)
     {
-        return new KmerStream<>(getKmers(key),meta.minLength,meta.maxLength, meta.rc);
+        return new KmerStream<>(getKmers(key,key),meta.minLength,meta.maxLength, meta.rc);
     }
 
     public KmerStream<D> kmers(int startKey, int endKey)
     {
-        return new KmerStream<>(IntStream.range(startKey,endKey).filter(i -> file.hasIndex(i)).mapToObj(i ->
-                getKmers(i)).flatMap(s -> s), meta.minLength, meta.maxLength, meta.rc);
+        return new KmerStream<>(getKmers(startKey,endKey),meta.minLength,meta.maxLength, meta.rc);
     }
 
     public KmerStream<D> allKmers()
     {
-        return kmers(0, file.maxIndex());
+        return new KmerStream<>(getKmers(0,file.maxIndex()),meta.minLength,meta.maxLength, meta.rc);
     }
-
-
 
     public KmerStream<D> restrictedKmers(int key, int minLength, int maxLength)
     {
@@ -106,32 +110,7 @@ public class KmerFile<D>
         return dataType;
     }
 
-    private Stream<KmerWithData<D>> getUncompressedKmers(int key)
-    {
-        if (file.hasIndex(key))
-        {
-            // SHOULD PROBABLY CHANGE TO A SPLITERATOR!!
-            //Hacky but neccessary way to get round stream issues
-            final Kmer[] prev = new Kmer[1];
-            prev[0] = null;
-
-            return file.lines(key).map(l ->
-                    {
-                        String[] parts = l.split("\t");
-                        Kmer kmer = Kmer.createUnchecked(prev[0], parts[0]);
-                        D data = dataType.fromString(parts[1]);
-                        prev[0] = kmer;
-                        return new KmerWithData<>(kmer, data);
-                    }
-            );
-        }
-        else
-        {
-            return Stream.empty();
-        }
-    }
-
-    protected IndexedInputFile<Integer> file;
+    protected IndexedInputFile2<Integer> file;
     private MergeableDataType<D> dataType;
     private MetaData meta;
 
@@ -153,11 +132,69 @@ public class KmerFile<D>
         public boolean rc;
     }
 
+    public class UncompressedKmerSpliterator<D> implements Spliterator<KmerWithData<D>>
+    {
+        public UncompressedKmerSpliterator(InputStream stream, Compressor<D> compressor)
+        {
+            in = new BufferedReader(new InputStreamReader(stream));
+            this.compressor = compressor;
+            prev = null;
+        }
+
+        @Override
+        public boolean tryAdvance(Consumer<? super KmerWithData<D>> consumer)
+        {
+            try
+            {
+                String line = in.readLine();
+                if (line != null)
+                {
+                    String[] parts = line.split("\t");
+                    Kmer kmer = Kmer.createUnchecked(prev, parts[0]);
+                    D data = compressor.fromString(parts[1]);
+                    prev = kmer;
+                    consumer.accept(new KmerWithData<>(kmer, data));
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            catch (IOException ex)
+            {
+                throw new UncheckedIOException(ex);
+            }
+        }
+
+        @Override
+        public long estimateSize()
+        {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public Spliterator<KmerWithData<D>> trySplit()
+        {
+            return null;
+        }
+
+        @Override
+        public int characteristics()
+        {
+            return Spliterator.IMMUTABLE | Spliterator.ORDERED;
+        }
+
+        private Kmer prev;
+        private Compressor<D> compressor;
+        private BufferedReader in;
+    }
+
     public class CompressedKmerSpliterator<D> implements Spliterator<KmerWithData<D>>
     {
-        public CompressedKmerSpliterator(byte[] bytes, Compressor<D> compressor)
+        public CompressedKmerSpliterator(InputStream stream, Compressor<D> compressor)
         {
-            this.bytes = ByteBuffer.wrap(bytes);
+            this.stream = new DataInputStream(stream);
             this.compressor = compressor;
             prevkb = new byte[0];
         }
@@ -165,14 +202,22 @@ public class KmerFile<D>
         @Override
         public boolean tryAdvance(Consumer<? super KmerWithData<D>> consumer)
         {
-            if (bytes.hasRemaining())
+            try
             {
-                byte copy = bytes.get();
+                byte copy;
+                try
+                {
+                    copy = stream.readByte();
+                }
+                catch (EOFException ex)
+                {
+                    return false;
+                }
 
                 byte len;
                 if (copy == 0)
                 {
-                    len = bytes.get();
+                    len = stream.readByte();
                 }
                 else
                 {
@@ -180,30 +225,30 @@ public class KmerFile<D>
                 }
 
                 int l = (len - 1) / 4 + 1;
-                byte[] kb = new byte[l+1];
+                byte[] kb = new byte[l + 1];
 
                 if (copy > 0)
                 {
-                    System.arraycopy(prevkb,0,kb,0,copy);
-                    bytes.get(kb,copy,l-copy+1);
+                    System.arraycopy(prevkb, 0, kb, 0, copy);
+                    stream.readFully(kb, copy, l - copy + 1);
                 }
                 else
                 {
                     kb[0] = len;
-                    bytes.get(kb,1,l);
+                    stream.readFully(kb, 1, l);
                 }
 
                 prevkb = kb;
                 Kmer k = Kmer.createFromCompressed(kb);
 
-                D data = compressor.decompress(bytes);
+                D data = compressor.decompress(stream);
 
-                consumer.accept(new KmerWithData<D>(k,data));
+                consumer.accept(new KmerWithData<D>(k, data));
                 return true;
             }
-            else
+            catch (IOException ex)
             {
-                return false;
+                throw new UncheckedIOException(ex);
             }
         }
 
@@ -227,36 +272,22 @@ public class KmerFile<D>
 
         private byte[] prevkb;
         private Compressor<D> compressor;
-        ByteBuffer bytes;
-    }
-
-    private static IndexedInputFile<Integer> getIndexedInputFile(File f) throws IOException
-    {
-        if (ZipOrNot.isGZipped(f))
-        {
-            return new ZippedIndexedInputFile<>(f, new IntCompressor());
-        }
-        else
-        {
-            return new StandardIndexedInputFile<>(f, new IntCompressor());
-        }
+        private DataInputStream stream;
     }
 
     public static <D> MetaData getMetaData(File f) throws IOException
     {
-        IndexedInputFile<Integer> file = getIndexedInputFile(f);
-        byte[] metadata = file.data(new Integer(-1));
+        IndexedInputFile2<Integer> file =  new IndexedInputFile2<>(f, new IntCompressor());
         if (file.isHumanReadable())
         {
-            String meta = new String(metadata);
-            String[] parts = meta.split("\n");
-            return new MetaData(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]),
-                    Integer.parseInt(parts[2]), Compressor.getID(parts[3]), parts[4].equals("1"));
+            BufferedReader in = new BufferedReader(new InputStreamReader(file.getInputStream(-1)));
+            return new MetaData(Integer.parseInt(in.readLine()), Integer.parseInt(in.readLine()), Integer.parseInt(in.readLine()),
+                    Compressor.getID(in.readLine()), in.readLine().equals("1"));
         }
         else
         {
-            ByteBuffer meta = ByteBuffer.wrap(metadata);
-            return new MetaData(meta.get(), meta.get(), meta.get(), Compressor.getID(meta), meta.get() == (byte) 1);
+            DataInputStream in = new DataInputStream(file.getInputStream(-1));
+            return new MetaData(in.read(), in.read(), in.read(), Compressor.getID(in), in.read() == 1);
         }
     }
 

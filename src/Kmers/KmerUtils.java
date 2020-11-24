@@ -59,10 +59,17 @@ public class KmerUtils
     public static <D> KmerStream<D> restrictedStream(KmerStream<D> stream,
                                                      int minLength, int maxLength, MergeableDataType<D> dataType)
     {
-        return new KmerStream<>(StreamUtils.groupAndReduceStream(
-                stream.filter(kwd -> kwd.getKmer().length() >= minLength).map(kwd -> kwd.limitTo(maxLength)).stream(),
-                (kwd1,kwd2) -> kwd1.getKmer().equals(kwd2.getKmer()),
-                dataType.getKmerReducer()
-        ),minLength,maxLength,stream.getRC());
+        if ((stream.getMinLength() == minLength) && (stream.getMaxLength() == maxLength))
+        {
+            return stream;
+        }
+        else
+        {
+            return new KmerStream<>(StreamUtils.groupAndReduceStream(
+                    stream.filter(kwd -> kwd.getKmer().length() >= minLength).map(kwd -> kwd.limitTo(maxLength)).stream(),
+                    (kwd1,kwd2) -> kwd1.getKmer().equals(kwd2.getKmer()),
+                    dataType.getKmerReducer()
+            ),minLength,maxLength,stream.getRC());
+        }
     }
 }

@@ -107,6 +107,10 @@ public class KmerStream<D> implements AutoCloseable
             }
         }
 
+        if (streams.size() == 1)
+        {
+            return streams.iterator().next();
+        }
         return new KmerStream(streams.stream().map(ks -> ks.stream).flatMap(s -> s), minK, maxK, rc);
     }
 

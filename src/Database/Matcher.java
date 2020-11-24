@@ -80,7 +80,6 @@ public class Matcher
 
         if (commands.hasOption("t"))
         {
-//            LimitedQueueExecutor.setDefaultNumberThreads(Integer.parseInt(commands.getOptionValue('t')));
             db.setThreads(Integer.parseInt(commands.getOptionValue('t')));
         }
 
@@ -103,7 +102,6 @@ public class Matcher
                 f = new File(s + "." + i);
             }
         }
-        //File f = new File(commands.getOptionValue('i'));
 
         PrintWriter out;
         if (commands.hasOption('Z'))
@@ -120,29 +118,14 @@ public class Matcher
         int maxDiff = Integer.parseInt(commands.getOptionValue('n',"0"));
         boolean just = commands.hasOption('j');
 
-//        CountDataType dbt = new CountDataType();
-        //ClosestInfoDataType<TreeCountMap<Integer>> cit = new ClosestInfoDataType<>(dbt);
-//        DataPairDataType<KmerDiff, TreeCountMap<Integer>> innerPairDT = new DataPairDataType<>(new KmerDiffDataType(), new CountDataType("x","|"), "|");
-//        SetDataType<DataPair<KmerDiff,TreeCountMap<Integer>>> setDT = new SetDataType<>(innerPairDT, " ");
-
-        //int[] dataID = KmerFile.getDataID(f);
-
-//        KmerFile.MetaData meta = KmerFile.getMetaData(f);
         KmerFile.MetaData meta = KmerFile.getMetaData(searchfiles.get(0));
 
         int minK = Integer.parseInt(commands.getOptionValue('k',Integer.toString(meta.minLength)));
         int maxK = Integer.parseInt(commands.getOptionValue('K',Integer.toString(meta.maxLength)));
 
         SetDataType<ReadPos> readDT = new SetDataType<>(new ReadPosDataType());
-        //if (dataID == 1026) // If reads file against db
         if (Arrays.equals(meta.dataID, readDT.getID()))
         {
-
-//            DataPairDataType<Set<ReadPos>, ClosestInfoCollector<TreeCountMap<Integer>>> rest = new DataPairDataType<>(rt,cit);
-//            DataPairDataType<Set<ReadPos>, Set<DataPair<KmerDiff,TreeCountMap<Integer>>>> rest = new DataPairDataType<>(rt,setDT, "\t");
-            //KmerWithDataDatatType<DataPair<Set<ReadPos>, ClosestInfoCollector<TreeCountMap<Integer>>>> kwdt = new KmerWithDataDatatType<>(rest);
-//            KmerWithDataDataType<DataPair<Set<ReadPos>, Set<DataPair<KmerDiff,TreeCountMap<Integer>>>>> kwdt = new KmerWithDataDataType<>(rest, "\t");
-
             List<KmerFile<Set<ReadPos>>> sfiles = new ArrayList<>();
             for (File sf: searchfiles)
             {
@@ -167,7 +150,6 @@ public class Matcher
             }
             else
             {
-                //doMatching(new KmerFile<>(f, readDT), db, out, ResultsDataType.getReadReferenceInstance(),
                 doMatching(sfiles, db, out, ResultsDataType.getReadReferenceInstance(),
                         maxDiff, just, minK, maxK);
             }
@@ -199,7 +181,6 @@ public class Matcher
                         maxDiff, just, minK, maxK, start, end);
             }
 
-//            doMatching(new KmerFile<>(f, referenceDT), db, out, ResultsDataType.getReferenceReferenceInstance(),
             doMatching(sfiles, db, out, ResultsDataType.getReferenceReferenceInstance(),
                     maxDiff, just, minK, maxK);
         }
@@ -210,15 +191,11 @@ public class Matcher
     }
 
     private static <S,M> void doMatching(List<KmerFile<S>> searchFiles, DB<M> db, PrintWriter out,
-                                         //KmerWithDataDatatType<DataPair<S, ClosestInfoCollector<M>>> kwdt,
-                                         //KmerWithDataDataType<DataPair<S, Set<DataPair<KmerDiff,M>>>> kwdt,
                                          ResultsDataType<S,M> kwdt,
                                          int maxDiff, boolean just, int minK, int maxK,
                                          int startKey, int endKey) throws InconsistentDataException
     {
-        //KmerStream<S> searchStream = searchFile.allKmers();
-//        KmerStream<S> searchStream = searchFile.allRestrictedKmers(minK,maxK);
-        KmerStream<S> searchStream = KmerStream.concatenateStreams(searchFiles.stream().map(sf -> sf.restrictedKmers(startKey, endKey, minK, maxK)));
+        KmerStream<S> searchStream = searchFiles.get(0).allKmers();
 
         KmerStream<DataPair<S, Set<DataPair<KmerDiff,M>>>> resultStream =
                 db.getNearestKmers(searchStream, maxDiff, just).filter(kwd -> !kwd.getData().getB().isEmpty());
@@ -226,13 +203,9 @@ public class Matcher
     }
 
     private static <S,M> void doMatching(List<KmerFile<S>> searchFiles, DB<M> db, PrintWriter out,
-                                         //KmerWithDataDatatType<DataPair<S, ClosestInfoCollector<M>>> kwdt,
-                                         //KmerWithDataDataType<DataPair<S, Set<DataPair<KmerDiff,M>>>> kwdt,
                                          ResultsDataType<S,M> kwdt,
                                          int maxDiff, boolean just, int minK, int maxK) throws InconsistentDataException
     {
-        //KmerStream<S> searchStream = searchFile.allKmers();
-//        KmerStream<S> searchStream = searchFile.allRestrictedKmers(minK,maxK);
         KmerStream<S> searchStream = KmerStream.concatenateStreams(searchFiles.stream().map(sf -> sf.allRestrictedKmers(minK, maxK)));
 
         KmerStream<DataPair<S, Set<DataPair<KmerDiff,M>>>> resultStream =

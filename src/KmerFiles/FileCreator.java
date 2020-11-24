@@ -4,20 +4,24 @@ import Compression.Compressor;
 import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
 import Concurrent.OrderedIndexedOutput;
+import Concurrent.OrderedLatches;
 import Concurrent.OutputProgress;
 import Counts.CountDataType;
 import DataTypes.DataCollector;
 import DataTypes.DataType;
 import Exceptions.InconsistentDataException;
 import IndexedFiles.*;
+import IndexedFiles2.IndexedInputFile2;
+import IndexedFiles2.IndexedInputFileSet2;
+import IndexedFiles2.IndexedOutputFile2;
+import IndexedFiles2.IndexedOutputFileSet2;
+import IndexedFiles2.IntegerIndexedOutputFileCache2;
 import Kmers.Kmer;
 import Kmers.KmerWithData;
 import Kmers.KmerStream;
 import Kmers.KmerWithDataDataType;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -32,7 +36,6 @@ public class FileCreator<I,O> implements AutoCloseable
                        boolean useExistingTemp) throws IOException
     {
         this.dbFileTemp = dbFileTemp;
-//        dbFileTemp.deleteOnExit();
 
         maxkey = 1;
         for (int i = 0; i < keyLength; i++)
@@ -43,12 +46,9 @@ public class FileCreator<I,O> implements AutoCloseable
         this.useExistingTemp = useExistingTemp;
         if (!useExistingTemp)
         {
-            fileSet = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f, new IntCompressor(), false, 5, maxSize), dbFileTemp);
-            fileCache = new IntegerIndexedOutputFileCache(maxkey, cacheSize, fileSet);
+            fileSet = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f, new IntCompressor(), false, 5, maxSize), dbFileTemp);
+            fileCache = new IntegerIndexedOutputFileCache2(maxkey, cacheSize, fileSet);
         }
-
-//        fileCache = new IntegerIndexedOutputFileCache(maxkey,cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
-//        fileCache = new IndexedOutputFileCache2<>(cacheSize,new ZippedIndexedOutputFile<>(dbFileTemp,new IntCompressor(),false,5));
 
         this.keyLength = keyLength;
 
@@ -79,15 +79,7 @@ public class FileCreator<I,O> implements AutoCloseable
             kmerStream.forEach(kwd -> {
                         try
                         {
-//                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
                             fileCache.add(kwd.getKmer().key(keyLength), kwdCompressor.compress(kwd));
-//                            KmerWithData<I> rc = new KmerWithData<>(kwd.getKmer().getRC(), kwd.getData());
-//                            //Check for plaindromes
-//                            if (!kwd.getKmer().equals(rc.getKmer()))
-//                            {
-////                                fileCache.add(rc.getKmer().key(keyLength), rc.compressedBytes(dataType.getDataCompressor()));
-//                                fileCache.add(rc.getKmer().key(keyLength), kwdCompressor.compress(rc));
-//                            }
                             if (!kwd.getKmer().isOwnRC())
                             {
                                 kwd.inplaceRC();
@@ -106,7 +98,6 @@ public class FileCreator<I,O> implements AutoCloseable
             kmerStream.forEach(kwd -> {
                         try
                         {
-//                            fileCache.add(kwd.getKmer().key(keyLength), kwd.compressedBytes(dataType.getDataCompressor()));
                             fileCache.add(kwd.getKmer().key(keyLength), kwdCompressor.compress(kwd));
                         }
                         catch (IOException ex)
@@ -118,22 +109,22 @@ public class FileCreator<I,O> implements AutoCloseable
         }
     }
 
-    public void create(IndexedOutputFileSet<Integer> out, boolean hr) throws Exception
+    public void create(IndexedOutputFileSet2<Integer> out, boolean hr) throws Exception
     {
-        List<IndexedInputFile<Integer>> fileList = new ArrayList<>();
+        List<IndexedInputFile2<Integer>> fileList = new ArrayList<>();
         if (!useExistingTemp)
         {
             fileCache.close();
             for (File f: fileSet.getCreated())
             {
-                fileList.add(new ZippedIndexedInputFile<>(f, new IntCompressor()));
+                fileList.add(new IndexedInputFile2<>(f, new IntCompressor()));
             }
         }
         else
         {
             if (dbFileTemp.exists())
             {
-                fileList.add(new ZippedIndexedInputFile<>(dbFileTemp, new IntCompressor()));
+                fileList.add(new IndexedInputFile2<>(dbFileTemp, new IntCompressor()));
             }
             else
             {
@@ -141,34 +132,22 @@ public class FileCreator<I,O> implements AutoCloseable
                 File f = new File(dbFileTemp + "." + i);
                 while (f.exists())
                 {
-                    fileList.add(new ZippedIndexedInputFile<>(f, new IntCompressor()));
+                    fileList.add(new IndexedInputFile2<>(f, new IntCompressor()));
                     i++;
                     f = new File(dbFileTemp + "." + i);
                 }
             }
         }
 
-
-
-        //IndexedInputFile<Integer> tempIn = new ZippedIndexedInputFile<>(dbFileTemp, new IntCompressor());
-        IndexedInputFileSet<Integer> tempIn = new IndexedInputFileSet<>(fileList);
+        IndexedInputFileSet2<Integer> tempIn = new IndexedInputFileSet2<>(fileList);
 
         LimitedQueueExecutor<Void> exec = new LimitedQueueExecutor<>();
 
-        OrderedIndexedOutput orderedout = new OrderedIndexedOutput(out,maxkey);
+        OrderedLatches latches = new OrderedLatches(maxkey);
 
         byte[] meta;
         if (!hr)
         {
-//            ByteBuffer bb = ByteBuffer.allocate(8);
-//            bb.put((byte) minK);
-//            bb.put((byte) maxK);
-//            bb.put((byte) keyLength);
-//            //bb.putInt(dataCollector.getCollectionDataType().getID());
-//            bb.put(Compressor.getByteID(dataCollector.getCollectionDataType().getID()));
-//            bb.put(rc ? (byte) 1 : (byte) 0);
-//            meta = bb.array();
-
             byte[] id = Compressor.getByteID(dataCollector.getCollectionDataType().getID());
             ByteBuffer bb = ByteBuffer.allocate(4 + id.length);
             bb.put((byte) minK);
@@ -187,7 +166,6 @@ public class FileCreator<I,O> implements AutoCloseable
             sb.append("\n");
             sb.append(keyLength);
             sb.append("\n");
-//            sb.append(dataCollector.getCollectionDataType().getID());
             sb.append(Compressor.getStringID(dataCollector.getCollectionDataType().getID()));
             sb.append("\n");
             sb.append(rc ? "1" : "0");
@@ -198,25 +176,16 @@ public class FileCreator<I,O> implements AutoCloseable
 
         OutputProgress progress = new OutputProgress("%4d/" + maxkey + " output indexes completed.");
 
-        List<Future<Void>> futures = new ArrayList<>(maxkey);
-
         for (int i = 0; i < maxkey; i++)
         {
-            //exec.submit(new MakeAndWriteKey<>(tempIn,i,orderedout, maxKmerLength, dataCollector.getDataDataType(),
-            futures.add(exec.submit(new MakeAndWriteKey<>(tempIn,i,orderedout, maxK, dataCollector.getDataDataType(),
-                    dataCollector.getCollectionDataType(), dataCollector.getCollector(), hr, progress)));
+            exec.submitAndCheck(new MakeAndWriteKey<>(tempIn,i,out, latches, maxK, dataCollector.getDataDataType(),
+                    dataCollector.getCollectionDataType(), dataCollector.getCollector(), hr, progress));
         }
 
-        exec.shutdown();
-
-        for (Future<Void> f: futures)
-        {
-            f.get();
-        }
+        exec.shutdownAndCheck();
 
         out.close();
         tempIn.close();
-//        dbFileTemp.delete();
         if (dbFileTemp.exists())
         {
             dbFileTemp.delete();
@@ -271,13 +240,13 @@ public class FileCreator<I,O> implements AutoCloseable
 
     private static class MakeAndWriteKey<I,O,A> implements Callable<Void>
     {
-        //private MakeAndWriteKey(IndexedInputFile<Integer> in, int index, OrderedIndexedOutput out, int maxKmerLength, DataType<I> inputCompressor,
-        private MakeAndWriteKey(IndexedInputFileSet<Integer> in, int index, OrderedIndexedOutput out, int maxKmerLength, DataType<I> inputCompressor,
-                                DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr, OutputProgress progress)
+        private MakeAndWriteKey(IndexedInputFileSet2<Integer> in, int index, IndexedOutputFileSet2<Integer> out, OrderedLatches latches, int maxKmerLength,
+                                DataType<I> inputCompressor, DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr, OutputProgress progress)
         {
             this.in = in;
             this.index = index;
             this.out = out;
+            this.latches = latches;
             this.maxKmerLength = maxKmerLength;
             this.inputCompressor = inputCompressor;
             this.outputCompressor = outputCompressor;
@@ -289,42 +258,45 @@ public class FileCreator<I,O> implements AutoCloseable
         public Void call()
         {
             TreeMap<Kmer, A> kmers = new TreeMap<>();
-            byte[] data;
+            byte[][] data;
 
             try
             {
-                ByteBuffer indata = ByteBuffer.wrap(in.data(index));
-                while (indata.hasRemaining())
+                DataInputStream indata = new DataInputStream(in.getInputStream(index));
+
+                byte len = (byte) indata.read();
+                int c = 0;
+                while (len != -1)
                 {
-                    byte len = indata.get();
+                    c++;
                     int l = (len - 1) / 4 + 1;
                     byte[] kb = new byte[l + 1];
                     kb[0] = len;
 
-                    indata.get(kb, 1, l);
+                    indata.readFully(kb, 1, l);
 
                     Kmer k = Kmer.createFromCompressed(kb);
                     I d = inputCompressor.decompress(indata);
 
-
                     A cm = kmers.get(k);
+
                     if (cm == null)
                     {
                         cm = collector.supplier().get();
                         kmers.put(k, cm);
                     }
                     collector.accumulator().accept(cm, d);
+                    len = (byte) indata.read();
                 }
-
                 if (kmers.isEmpty())
                 {
-                    data = new byte[0];
+                    data = new byte[0][];
                 }
                 else
                 {
                     if (!hr)
                     {
-                        byte[][] bytes = new byte[kmers.size() * 3][];
+                        data = new byte[kmers.size()*3][];
                         int p = 0;
                         int l = 0;
                         byte[] prev = new byte[1];
@@ -349,28 +321,23 @@ public class FileCreator<I,O> implements AutoCloseable
                                 System.arraycopy(kc, s, diffkc, 0, diffkc.length);
                             }
 
-                            bytes[p] = sb;
+                            data[p] = sb;
                             l++;
                             p++;
-                            bytes[p] = diffkc;
+                            data[p] = diffkc;
                             l += diffkc.length;
                             p++;
                             byte[] dc = outputCompressor.compress(collector.finisher().apply(e.getValue()));
-                            bytes[p] = dc;
+                            data[p] = dc;
                             l += dc.length;
                             p++;
-                        }
-
-                        data = new byte[l];
-                        int c = 0;
-                        for (byte[] b : bytes)
-                        {
-                            System.arraycopy(b, 0, data, c, b.length);
-                            c += b.length;
                         }
                     }
                     else
                     {
+                        data = new byte[kmers.size()][];
+                        int p = 0;
+
                         char[] chars = new char[kmers.firstKey().length()];
                         Arrays.fill(chars, ' ');
                         String last = new String(chars);
@@ -383,8 +350,10 @@ public class FileCreator<I,O> implements AutoCloseable
                             sb.append(outputCompressor.toString(collector.finisher().apply(e.getValue())));
                             sb.append("\n");
                             last = next;
+                            data[p] = sb.toString().getBytes("UTF-8");
+                            p++;
+                            sb.setLength(0);
                         }
-                        data = sb.toString().getBytes("UTF-8");
                     }
                 }
             }
@@ -392,10 +361,21 @@ public class FileCreator<I,O> implements AutoCloseable
             {
                 throw new UncheckedIOException(e);
             }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+                throw e;
+            }
 
             try
             {
-                out.write(data, index);
+                latches.wait(index);
+                out.setCurrentKey(index);
+                for (byte[] d: data)
+                {
+                    out.write(d);
+                }
+                latches.done();
             }
             catch (InterruptedException e)
             {
@@ -415,9 +395,10 @@ public class FileCreator<I,O> implements AutoCloseable
 
         private Collector<I, A, O> collector;
 
-        private IndexedInputFileSet<Integer> in;
+        private IndexedInputFileSet2<Integer> in;
         private int index;
-        private OrderedIndexedOutput out;
+        private IndexedOutputFileSet2<Integer> out;
+        private OrderedLatches latches;
         private int maxKmerLength;
         private DataType<I> inputCompressor;
         private DataType<O> outputCompressor;
@@ -435,11 +416,10 @@ public class FileCreator<I,O> implements AutoCloseable
     private DataCollector<I,O> dataCollector;
     private KmerWithDataDataType<I> kwdCompressor;
 
-//    private int maxKmerLength;
     private int keyLength;
     private int maxkey;
-    private IndexedOutputFileCache<Integer> fileCache;
-    private IndexedOutputFileSet<Integer> fileSet;
+    private IntegerIndexedOutputFileCache2 fileCache;
+    private IndexedOutputFileSet2<Integer> fileSet;
 
     private boolean useExistingTemp;
 }

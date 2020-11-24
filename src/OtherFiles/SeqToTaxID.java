@@ -9,7 +9,6 @@ import DataTypes.StringDataType;
 import Exceptions.InvalidBaseException;
 import IndexedFiles.*;
 import Kmers.*;
-import Zip.BlockedZipOutputFile;
 import Zip.ZipOrNot;
 import org.apache.commons.cli.*;
 import sun.awt.image.ImageWatched;

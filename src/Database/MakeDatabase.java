@@ -12,6 +12,8 @@ import DataTypes.IntDataType;
 import Exceptions.InconsistentDataException;
 import Files.SizeConvertor;
 import IndexedFiles.*;
+import IndexedFiles2.IndexedOutputFile2;
+import IndexedFiles2.IndexedOutputFileSet2;
 import KmerFiles.FileCreator;
 import Kmers.*;
 import OtherFiles.KmersFromFile;
@@ -193,7 +195,6 @@ public class MakeDatabase
                         if ((index.compareTo(start) >= 0) && (index.compareTo(end) <= 0))
                         {
                             ex.submit(new ProcessIndex(dbc, in, j, k, commands, index, progress));
-                            //                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
                         }
                     }
                 }
@@ -202,7 +203,6 @@ public class MakeDatabase
                     for (String index : in.indexes())
                     {
                         ex.submit(new ProcessIndex(dbc, in, j, k, commands, index, progress));
-                        //                (new ProcessIndex(dbc,in,j,k,commands,index, progress)).call();
                     }
                 }
 
@@ -265,21 +265,18 @@ public class MakeDatabase
 
     private static <D> void create(FileCreator<D,?> dbc, CommandLine commands, long maxSize) throws Exception
     {
-        IndexedOutputFileSet<Integer> out;
+        IndexedOutputFileSet2<Integer> out;
         try
         {
             if (commands.hasOption('Z'))
             {
-                //out = new StandardIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(), commands.hasOption('h'));
-                out = new IndexedOutputFileSet<>(f -> new StandardIndexedOutputFile<>(f, new IntCompressor(), commands.hasOption('h'), maxSize),
+                out = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f, new IntCompressor(), commands.hasOption('h'), maxSize),
                         new File(commands.getOptionValue('o')));
             }
             else
             {
-                out = new IndexedOutputFileSet<>(f -> new ZippedIndexedOutputFile<>(f, new IntCompressor(), commands.hasOption('h'),
+                out = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f, new IntCompressor(), commands.hasOption('h'),
                         Integer.parseInt(commands.getOptionValue('z',"5")), maxSize), new File(commands.getOptionValue('o')));
-//                out = new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(), commands.hasOption('h'),
-//                        Integer.parseInt(commands.getOptionValue('z',"5")));
             }
         }
         catch (FileAlreadyExistsException ex)
@@ -346,8 +343,6 @@ public class MakeDatabase
 
             int end = Math.min(curstart+maxK,curseq.length());
             int l = end - curstart;
-//            byte[] kbytes = new byte[l];
-//            System.arraycopy(curseq.getRawBytes(),curstart,kbytes,0,l);
 
             System.arraycopy(curseq.getRawBytes(),curstart,reuseBytes[l-minK],0,l);
 
@@ -356,7 +351,6 @@ public class MakeDatabase
             {
                 curseq = null;
             }
-//            consumer.accept(new KmerWithData<>(Kmer.createUnchecked(kbytes), curid));
 
             consumer.accept(new KmerWithData<>(Kmer.createUnchecked(reuseBytes[l-minK]), curid));
 
