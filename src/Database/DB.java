@@ -80,7 +80,6 @@ public class DB<D>
         Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
         ProcessCommonSpliterator<S> spliterator = new ProcessCommonSpliterator<>(groupedStream, maxDiff, just, quick, searchKmers.getMinLength(), searchKmers.getMaxLength());
         return new KmerStream<>(
-                //StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).flatMap(l -> l.stream()). map(kwd -> mapToResult(kwd)),
                 StreamUtils.concetenateStreams(StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).map(l -> l.stream())).map(kwd -> mapToResult(kwd)),
                 searchKmers.getMinLength(), searchKmers.getMaxLength(), searchKmers.getRC());
     }
