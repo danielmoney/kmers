@@ -7,7 +7,12 @@ import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
 import DataTypes.StringDataType;
 import Exceptions.InvalidBaseException;
-import IndexedFiles.*;
+import IndexedFiles.IndexedOutputFile;
+import IndexedFiles.StandardIndexedOutputFile;
+import IndexedFiles.ZippedIndexedOutputFile;
+import IndexedFiles.IndexedOutputFileCache;
+import IndexedFiles.ComparableIndexedOutputFileCache;
+import IndexedFiles2.IndexedInputFile2;
 import Kmers.*;
 import Zip.ZipOrNot;
 import org.apache.commons.cli.*;
@@ -60,7 +65,6 @@ public class SeqToTaxID
 
         File dataFile = new File(commands.getOptionValue('i'));
         File tmpDataFile = new File(commands.getOptionValue('i') + ".tmp");
-//        File mapFile = new File(commands.getOptionValue('m'));
         List<File> mapFiles = new LinkedList<>();
         for (String s: commands.getOptionValues('m'))
         {
@@ -86,9 +90,6 @@ public class SeqToTaxID
             z = Integer.parseInt(commands.getOptionValue('z',"5"));
         }
 
-//        makeDataTemp(dataFile, tmpDataFile, keylength, cachesize);
-//        makeMapTemp(mapFiles, tmpMapFile, taxpos, idpos, headerLines, keylength,cachesize);
-
         ExecutorService ex = Executors.newFixedThreadPool(2);
 
         ex.submit(new MakeDataTemp(dataFile, tmpDataFile, keylength, cachesize));
@@ -105,13 +106,11 @@ public class SeqToTaxID
 
     public static void createMapped(File tmpDataFile, File tmpMapFile, File outFile, int z, boolean hr) throws IOException, InterruptedException
     {
-        IndexedInputFile<String> in2Data = new ZippedIndexedInputFile<>(tmpDataFile, new StringCompressor());
-        IndexedInputFile<String> in2Map = new ZippedIndexedInputFile<>(tmpMapFile, new StringCompressor());
+
+        IndexedInputFile2<String> in2Data = new IndexedInputFile2<>(tmpDataFile, new StringCompressor());
+        IndexedInputFile2<String> in2Map = new IndexedInputFile2<>(tmpMapFile, new StringCompressor());
 
 
-//        if (z != -1)
-//        {
-//            BlockedZipOutputFile out = new BlockedZipOutputFile(outFile, 5);
         IndexedOutputFile<String> out;
         if (z == -1)
         {
@@ -137,14 +136,11 @@ public class SeqToTaxID
 
         in2Data.close();
         in2Map.close();
-
-//        tmpDataFile.delete();
-//        tmpMapFile.delete();
     }
 
     private static class CreateMapped implements Callable<Void>
     {
-        public CreateMapped(IndexedInputFile<String> in2Data, IndexedInputFile<String> in2Map,
+        public CreateMapped(IndexedInputFile2<String> in2Data, IndexedInputFile2<String> in2Map,
                 IndexedOutputFile<String> out, String index, boolean hr)
         {
             this.in2Data = in2Data;
@@ -159,35 +155,44 @@ public class SeqToTaxID
             try
             {
                 Map<String, Integer> map = new HashMap<>();
-                in2Map.lines(index).forEach(l -> {
+                BufferedReader br = new BufferedReader(new InputStreamReader(in2Map.getInputStream(index)));
+                br.lines().forEach(l -> {
                     String[] parts = l.split("\t");
                     map.put(parts[0], Integer.parseInt(parts[1]));
                 });
 
                 LinkedList<byte[]> bytes = new LinkedList<>();
 
-                ByteBuffer input = ByteBuffer.wrap(in2Data.data(index));
+                DataInputStream input = new DataInputStream(in2Data.getInputStream(index));
                 int size = 0;
-                while (input.hasRemaining())
+
+                try
                 {
-                    DataPair<String,Sequence> dp = stringPairDataType.decompress(input);
-                    Integer m = map.get(dp.getA());
-                    // If we have a mapping
-                    if (m != null)
+                    while (true)
                     {
-                        DataPair<Integer, Sequence> newdp = new DataPair<>(m, dp.getB());
-                        byte[] b;
-                        if (hr)
+                        DataPair<String, Sequence> dp = stringPairDataType.decompress(input);
+                        Integer m = map.get(dp.getA());
+                        // If we have a mapping
+                        if (m != null)
                         {
-                            b = (integerPairDataType.toString(newdp) + "\n").getBytes();
+                            DataPair<Integer, Sequence> newdp = new DataPair<>(m, dp.getB());
+                            byte[] b;
+                            if (hr)
+                            {
+                                b = (integerPairDataType.toString(newdp) + "\n").getBytes();
+                            }
+                            else
+                            {
+                                b = integerPairDataType.compress(newdp);
+                            }
+                            bytes.add(b);
+                            size += b.length;
                         }
-                        else
-                        {
-                            b = integerPairDataType.compress(newdp);
-                        }
-                        bytes.add(b);
-                        size += b.length;
                     }
+                }
+                catch (EOFException ex)
+                {
+                    //Nothing to do here
                 }
 
                 ByteBuffer bb = ByteBuffer.allocate(size);
@@ -206,8 +211,8 @@ public class SeqToTaxID
         }
 
         private boolean hr;
-        private IndexedInputFile<String> in2Data;
-        private IndexedInputFile<String> in2Map;
+        private IndexedInputFile2<String> in2Data;
+        private IndexedInputFile2<String> in2Map;
         private IndexedOutputFile<String> out;
         private String index;
     }

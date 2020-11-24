@@ -9,18 +9,15 @@ import CountMaps.TreeCountMap;
 import Counts.CountDataType;
 import DataTypes.*;
 import IndexedFiles.ComparableIndexedOutputFileCache;
-import IndexedFiles.IndexedInputFile;
-import IndexedFiles.ZippedIndexedInputFile;
 import IndexedFiles.ZippedIndexedOutputFile;
+import IndexedFiles2.IndexedInputFile2;
 import Kmers.KmerDiff;
 import Kmers.KmerWithData;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
 import org.apache.commons.cli.*;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -49,7 +46,6 @@ public class CollectByRead
 
         ResultsDataType<Set<ReadPos>, TreeCountMap<Integer>> rdt = ResultsDataType.getReadReferenceInstance();
         ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File(commands.getOptionValue('i')), rdt);
-//        ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File("limited.gz"), rdt);
 
         File tmpFile = new File(commands.getOptionValue('i') + ".tmp");
         ComparableIndexedOutputFileCache<Integer> cache = new ComparableIndexedOutputFileCache<>(1000,
@@ -61,7 +57,7 @@ public class CollectByRead
         in.stream().forEach(kwd -> processKmer(kwd, cache,odt));
         cache.close();
 
-        IndexedInputFile<Integer> in2 = new ZippedIndexedInputFile<>(tmpFile, new IntCompressor());
+        IndexedInputFile2<Integer> in2 = new IndexedInputFile2<>(tmpFile, new IntCompressor());
         ListOrderedIndexedOutput<Integer> out = new ListOrderedIndexedOutput<>(
                 new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(),true,5),
                 in2.indexes());
@@ -85,7 +81,7 @@ public class CollectByRead
 
     private static class ProcessIndex implements Callable<Void>
     {
-        private ProcessIndex(IndexedInputFile<Integer> in, int index,
+        private ProcessIndex(IndexedInputFile2<Integer> in, int index,
                              DataPairDataType<ReadPos,Map<Integer,TreeCountMap<Integer>>> odt,
                              ListOrderedIndexedOutput<Integer> out)
         {
@@ -97,11 +93,26 @@ public class CollectByRead
 
         public Void call()
         {
-            ByteBuffer bb = ByteBuffer.wrap(in.data(index));
             TreeSet<DataPair<ReadPos,Map<Integer,TreeCountMap<Integer>>>> set = new TreeSet<>((dp1,dp2) -> dp1.getA().compareTo(dp2.getA()));
-            while (bb.hasRemaining())
+            try
             {
-                set.add(odt.decompress(bb));
+                DataInputStream is = new DataInputStream(in.getInputStream(index));
+
+                try
+                {
+                    while (true)
+                    {
+                        set.add(odt.decompress(is));
+                    }
+                }
+                catch (EOFException ex)
+                {
+                    // Don't need to do anything here
+                }
+            }
+            catch (IOException ex)
+            {
+                throw new UncheckedIOException(ex);
             }
 
             byte[] data = set.stream().map(dp -> odt.toString(dp)).collect(Collectors.joining("\n")).getBytes();
@@ -123,7 +134,7 @@ public class CollectByRead
             return null;
         }
 
-        private IndexedInputFile<Integer> in;
+        private IndexedInputFile2<Integer> in;
         private int index;
         private DataPairDataType<ReadPos,Map<Integer,TreeCountMap<Integer>>> odt;
         private ListOrderedIndexedOutput<Integer> out;
@@ -147,9 +158,6 @@ public class CollectByRead
             for (ReadPos rp : kwd.getData().getA())
             {
                 DataPair<ReadPos, Map<Integer, TreeCountMap<Integer>>> newData = new DataPair<>(rp, distTaxa);
-                //            System.out.println(odt.toString(newData));
-//                cache.add(newData.getA().getRead() / 1000, odt.toString(newData) + "\n");
-//                cache.add(newData.getA().getRead() / 1000, odt.compress(newData));
                 cache.add((newData.getA().getRead() / 1000) * 1000, odt.compress(newData));
             }
         }

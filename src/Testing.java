@@ -1,6 +1,5 @@
 import Compression.IntCompressor;
 import CountMaps.CountMap;
-import IndexedFiles.*;
 
 import IndexedFiles2.BlockInputStream;
 import IndexedFiles2.IndexedInputFile2;

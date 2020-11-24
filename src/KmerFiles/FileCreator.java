@@ -10,7 +10,6 @@ import Counts.CountDataType;
 import DataTypes.DataCollector;
 import DataTypes.DataType;
 import Exceptions.InconsistentDataException;
-import IndexedFiles.*;
 import IndexedFiles2.IndexedInputFile2;
 import IndexedFiles2.IndexedInputFileSet2;
 import IndexedFiles2.IndexedOutputFile2;

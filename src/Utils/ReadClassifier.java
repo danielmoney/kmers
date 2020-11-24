@@ -9,16 +9,13 @@ import DataTypes.DataPair;
 import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
 import DataTypes.MapDataType;
-import IndexedFiles.IndexedInputFile;
-import IndexedFiles.ZippedIndexedInputFile;
 import IndexedFiles.ZippedIndexedOutputFile;
+import IndexedFiles2.IndexedInputFile2;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
 import org.apache.commons.cli.*;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -49,7 +46,7 @@ public class ReadClassifier
         DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt = new DataPairDataType<>(new ReadPosDataType(),
                 new MapDataType<>(new IntDataType(), new CountDataType("x","|")), "\t");
 
-        IndexedInputFile<Integer> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new IntCompressor());
+        IndexedInputFile2<Integer> in = new IndexedInputFile2<>(new File(commands.getOptionValue('i')), new IntCompressor());
 
         ListOrderedIndexedOutput<Integer> out = new ListOrderedIndexedOutput<>(
                 new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(),true,5),
@@ -69,8 +66,6 @@ public class ReadClassifier
 
         ex.shutdown();
 
-//        (new ProcessIndex(in, 0, idt, out)).call();
-
         out.close();
         in.close();
 
@@ -79,7 +74,7 @@ public class ReadClassifier
 
     private static class ProcessIndex implements Callable<Void>
     {
-        private ProcessIndex(IndexedInputFile<Integer> in, int index,
+        private ProcessIndex(IndexedInputFile2<Integer> in, int index,
                              DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt,
                              ListOrderedIndexedOutput<Integer> out)
         {
@@ -91,7 +86,16 @@ public class ReadClassifier
 
         public Void call()
         {
-            Iterator<String> inData = in.lines(index).iterator();
+            BufferedReader br;
+            try
+            {
+                br = new BufferedReader(new InputStreamReader(in.getInputStream(index)));
+            }
+            catch (IOException ex)
+            {
+                throw new UncheckedIOException(ex);
+            }
+            Iterator<String> inData = br.lines().iterator();
 
             DataPair<ReadPos, Map<Integer, TreeCountMap<Integer>>> data;
             int curRead = -1;
@@ -208,7 +212,7 @@ public class ReadClassifier
             }
         }
 
-        private IndexedInputFile<Integer> in;
+        private IndexedInputFile2<Integer> in;
         private int index;
         private DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt;
         private ListOrderedIndexedOutput<Integer> out;

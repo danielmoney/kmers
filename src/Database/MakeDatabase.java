@@ -11,7 +11,7 @@ import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
 import Exceptions.InconsistentDataException;
 import Files.SizeConvertor;
-import IndexedFiles.*;
+import IndexedFiles2.IndexedInputFile2;
 import IndexedFiles2.IndexedOutputFile2;
 import IndexedFiles2.IndexedOutputFileSet2;
 import KmerFiles.FileCreator;
@@ -171,7 +171,7 @@ public class MakeDatabase
 
             if (!useExistingTemp)
             {
-                IndexedInputFile<String> in = new ZippedIndexedInputFile<>(new File(commands.getOptionValue('i')), new StringCompressor());
+                IndexedInputFile2<String> in = new IndexedInputFile2<>(new File(commands.getOptionValue('i')), new StringCompressor());
 
                 LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
 
@@ -217,7 +217,7 @@ public class MakeDatabase
 
     private static class ProcessIndex implements Callable<Void>
     {
-        public ProcessIndex(FileCreator<Integer, TreeCountMap<Integer>> dbc, IndexedInputFile<String> in,
+        public ProcessIndex(FileCreator<Integer, TreeCountMap<Integer>> dbc, IndexedInputFile2<String> in,
                             int j, int k, CommandLine commands, String index, OutputProgress progress)
         {
             this.dbc = dbc;
@@ -241,7 +241,7 @@ public class MakeDatabase
         }
 
         private FileCreator<Integer, TreeCountMap<Integer>> dbc;
-        private IndexedInputFile<String> in;
+        private IndexedInputFile2<String> in;
         private int j;
         private int k;
         private CommandLine commands;
@@ -292,17 +292,32 @@ public class MakeDatabase
 
     private static class PreProcessedSpliterator implements Spliterator<KmerWithData<Integer>>
     {
-        private PreProcessedSpliterator(IndexedInputFile<String> in, int minK, int maxK, String index)
+        private PreProcessedSpliterator(IndexedInputFile2<String> in, int minK, int maxK, String index)
         {
             this.in = in;
             hr = in.isHumanReadable();
             if (hr)
             {
-                lines = in.lines(index).iterator();
+                try
+                {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(in.getInputStream(index)));
+                    lines = br.lines().iterator();
+                }
+                catch (IOException ex)
+                {
+                    throw new UncheckedIOException(ex);
+                }
             }
             else
             {
-                bb = ByteBuffer.wrap(in.data(index));
+                try
+                {
+                    dis = new DataInputStream(in.getInputStream(index));
+                }
+                catch (IOException ex)
+                {
+                    throw new UncheckedIOException(ex);
+                }
             }
             this.minK = minK;
             this.maxK = maxK;
@@ -329,11 +344,18 @@ public class MakeDatabase
                 }
                 else
                 {
-                    if (!bb.hasRemaining())
+                    try
+                    {
+                        dp = integerPairDataType.decompress(dis);
+                    }
+                    catch (EOFException ex)
                     {
                         return false;
                     }
-                    dp = integerPairDataType.decompress(bb);
+                    catch (IOException ex)
+                    {
+                        throw new UncheckedIOException(ex);
+                    }
                 }
                 curid = dp.getA();
                 curseq = dp.getB();
@@ -382,10 +404,10 @@ public class MakeDatabase
 
         private boolean hr;
 
-        private ByteBuffer bb;
+        private DataInputStream dis;
         private Iterator<String> lines;
 
-        private IndexedInputFile<String> in;
+        private IndexedInputFile2<String> in;
         private Iterator<String> indexIterator;
         private DataPairDataType<Integer,Sequence> integerPairDataType = new DataPairDataType<>(new IntDataType(), new SequenceDataType());
 

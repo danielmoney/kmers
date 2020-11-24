@@ -4,7 +4,6 @@ import CountMaps.TreeCountMap;
 import CountMaps.TwoKeyTreeCountMap;
 import DataTypes.DataPair;
 import DataTypes.ResultsDataType;
-import IndexedFiles.IndexedInputFile;
 import Kmers.KmerDiff;
 import Kmers.KmerWithData;
 import Reads.ReadPos;
@@ -27,8 +26,6 @@ public class CloserCounts
         -o  Output file - currently prints to screen
          */
 
-//        ResultsDataType<TreeCountMap<Integer>, TreeCountMap<Integer>> rdt = ResultsDataType.getReferenceReferenceInstance();
-//        ResultsFile<TreeCountMap<Integer>, TreeCountMap<Integer>> in = new ResultsFile<>(new File(args[0]), rdt);
         System.out.println(sdf.format(new Date()));
 
         Options options = new Options();
@@ -46,19 +43,8 @@ public class CloserCounts
         PrintWriter out = new PrintWriter(new OutputStreamWriter(new BufferedOutputStream(
                 new FileOutputStream(new File(commands.getOptionValue('o'))))));
 
-
-//        ResultsDataType<?, TreeCountMap<Integer>> rdt;
-//        if ((args.length == 4) && (args[3].equals("ref")))
-//        {
-//            rdt = ResultsDataType.getReferenceReferenceInstance();
-//        }
-//        else
-//        {
-//            rdt = ResultsDataType.getReadReferenceInstance();
-//        }
         File inf = new File(commands.getOptionValue('i'));
         ResultsDataType<?, TreeCountMap<Integer>> rdt = getResultsDataType(inf);
-//        ResultsFile<?, TreeCountMap<Integer>> in = new ResultsFile<>(new File(commands.getOptionValue('i')), rdt);
         ResultsFile<?, TreeCountMap<Integer>> in = new ResultsFile<>(inf, rdt);
 
         BufferedReader sfile = ZipOrNot.getBufferedReader(new File(commands.getOptionValue('s')));
@@ -66,8 +52,6 @@ public class CloserCounts
         Integer taxB = Integer.valueOf(sfile.readLine());
 
         TwoKeyTreeCountMap<Integer,Integer> count = new TwoKeyTreeCountMap<>();
-//        Integer taxA = Integer.valueOf(args[1]);
-//        Integer taxB = Integer.valueOf(args[2]);
 
         in.stream().forEach(kwd -> updateCount(count, kwd, taxA, taxB));
 
@@ -104,7 +88,6 @@ public class CloserCounts
 
 
     public static void updateCount(TwoKeyTreeCountMap<Integer, Integer> count,
-//                                   KmerWithData<DataPair<TreeCountMap<Integer>, Set<DataPair<KmerDiff, TreeCountMap<Integer>>>>> kwd,
                                    KmerWithData<? extends DataPair<?, Set<DataPair<KmerDiff, TreeCountMap<Integer>>>>> kwd,
                                    Integer taxA, Integer taxB)
     {
