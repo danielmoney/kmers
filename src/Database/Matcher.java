@@ -15,11 +15,13 @@ import Kmers.KmerStream;
 import Kmers.KmerWithDataDataType;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
+import Streams.StreamUtils;
 import org.apache.commons.cli.*;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
 public class Matcher
@@ -195,7 +197,13 @@ public class Matcher
                                          int maxDiff, boolean just, int minK, int maxK,
                                          int startKey, int endKey) throws InconsistentDataException
     {
-        KmerStream<S> searchStream = searchFiles.get(0).allKmers();
+        //KmerStream<S> searchStream = searchFiles.get(0).allKmers();
+        KmerStream<S> searchStream = new KmerStream<>(
+            StreamUtils.mergeSortedStreams(searchFiles.stream().map(f -> f.restrictedKmers(startKey, endKey, minK, maxK).stream()).collect(Collectors.toList()),
+                    (kwd1,kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())),
+            minK,
+            maxK,
+            true);
 
         KmerStream<DataPair<S, Set<DataPair<KmerDiff,M>>>> resultStream =
                 db.getNearestKmers(searchStream, maxDiff, just).filter(kwd -> !kwd.getData().getB().isEmpty());
@@ -206,7 +214,13 @@ public class Matcher
                                          ResultsDataType<S,M> kwdt,
                                          int maxDiff, boolean just, int minK, int maxK) throws InconsistentDataException
     {
-        KmerStream<S> searchStream = KmerStream.concatenateStreams(searchFiles.stream().map(sf -> sf.allRestrictedKmers(minK, maxK)));
+        //KmerStream<S> searchStream = KmerStream.concatenateStreams(searchFiles.stream().map(sf -> sf.allRestrictedKmers(minK, maxK)));
+        KmerStream<S> searchStream = new KmerStream<>(
+                StreamUtils.mergeSortedStreams(searchFiles.stream().map(f -> f.allRestrictedKmers(minK, maxK).stream()).collect(Collectors.toList()),
+                        (kwd1,kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())),
+                minK,
+                maxK,
+                true);
 
         KmerStream<DataPair<S, Set<DataPair<KmerDiff,M>>>> resultStream =
                 db.getNearestKmers(searchStream, maxDiff, just).filter(kwd -> !kwd.getData().getB().isEmpty());

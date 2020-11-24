@@ -68,8 +68,6 @@ public class DB<D>
         }
     }
 
-    //public <S> Stream<ClosestInfo<S,D>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just)
-    //public <S> KmerStream<DataPair<S, ClosestInfoCollector<D>>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just) throws InconsistentDataException
     public <S> KmerStream<DataPair<S, Set<DataPair<KmerDiff,D>>>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just) throws InconsistentDataException
     {
         if ((searchKmers.getMinLength() < minLength) || (searchKmers.getMaxLength() > maxLength))
@@ -82,7 +80,8 @@ public class DB<D>
         Stream<List<KmerWithData<S>>> groupedStream = StreamUtils.groupedStream(searchKmers.stream(), (kwd1, kwd2) -> kwd1.getKmer().key(keyLength) == kwd2.getKmer().key(keyLength), Collectors.toList());
         ProcessCommonSpliterator<S> spliterator = new ProcessCommonSpliterator<>(groupedStream, maxDiff, just, quick, searchKmers.getMinLength(), searchKmers.getMaxLength());
         return new KmerStream<>(
-                StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).flatMap(l -> l.stream()). map(kwd -> mapToResult(kwd)),
+                //StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).flatMap(l -> l.stream()). map(kwd -> mapToResult(kwd)),
+                StreamUtils.concetenateStreams(StreamSupport.stream(spliterator, false).onClose(() -> spliterator.close()).map(l -> l.stream())).map(kwd -> mapToResult(kwd)),
                 searchKmers.getMinLength(), searchKmers.getMaxLength(), searchKmers.getRC());
     }
 
@@ -132,8 +131,6 @@ public class DB<D>
 
     private <S> List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>> processNearestCommonKey(List<KmerWithData<S>> kmers, int maxDiff, boolean just, int minK, int maxK)
     {
-//        long start = System.currentTimeMillis();
-
         List<ClosestInfoCollector<D>> currentBest = new ArrayList<>(kmers.size());
 
         for (KmerWithData<S> k: kmers)
@@ -150,7 +147,6 @@ public class DB<D>
             Root<D> r = new Root<>(maxK,minK,dataType);
             for (KmerFile<D> f: files)
             {
-                //f.kmers(key).stream().forEach(k -> r.addKmer(k));
                 r.addKmers(f.kmers(key));
             }
             for (int i = 0; i < kmers.size(); i++)
@@ -160,7 +156,6 @@ public class DB<D>
                 ClosestInfoCollector<D> oldci = currentBest.get(i);
                 if ((newci.getMinDist() == oldci.getMinDist()) || !just)
                 {
-//                    oldci.merge(newci);
                     oldci.addAll(newci);
                 }
                 if ((newci.getMinDist() < oldci.getMinDist()) && just)
@@ -169,8 +164,6 @@ public class DB<D>
                 }
             }
         }
-
-//        System.out.println(kmers.get(0).getKmer() + "\t" + Arrays.toString(keybytes) + "\t" + (System.currentTimeMillis() - start));
 
         List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>> ret = new ArrayList<>(kmers.size());
 
@@ -188,7 +181,6 @@ public class DB<D>
         private ProcessCommonSpliterator(Stream<List<KmerWithData<S>>> inputStream, int maxDiff, boolean just, boolean quick, int minK, int maxK)
         {
             this.input = inputStream.iterator();
-            //ex = new LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>();
             ex = Executors.newFixedThreadPool(threads);
             futures = new LinkedList<>();
             for (int i = 0; i < threads; i++)
@@ -290,8 +282,7 @@ public class DB<D>
 
         private LinkedList<Future<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>>> futures;
         private Iterator<List<KmerWithData<S>>> input;
-//        private LimitedQueueExecutor<List<KmerWithData<DataPair<S, ClosestInfoCollector<D>>>>> ex;
-        ExecutorService ex;
+        private ExecutorService ex;
         private int maxDiff;
         private boolean just;
         private boolean quick;
