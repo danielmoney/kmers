@@ -2,15 +2,16 @@ package Utils;
 
 import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
-import Concurrent.ListOrderedIndexedOutput;
+import Concurrent.ListOrderedLatches;
 import CountMaps.TreeCountMap;
 import Counts.CountDataType;
 import DataTypes.DataPair;
 import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
 import DataTypes.MapDataType;
-import IndexedFiles.ZippedIndexedOutputFile;
 import IndexedFiles2.IndexedInputFile2;
+import IndexedFiles2.IndexedOutputFile2;
+import IndexedFiles2.IndexedOutputFileSet2;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
 import org.apache.commons.cli.*;
@@ -48,9 +49,10 @@ public class ReadClassifier
 
         IndexedInputFile2<Integer> in = new IndexedInputFile2<>(new File(commands.getOptionValue('i')), new IntCompressor());
 
-        ListOrderedIndexedOutput<Integer> out = new ListOrderedIndexedOutput<>(
-                new ZippedIndexedOutputFile<>(new File(commands.getOptionValue('o')), new IntCompressor(),true,5),
-                in.indexes());
+        IndexedOutputFileSet2<Integer> out = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f,new IntCompressor(),true,5),
+                new File(commands.getOptionValue('o')));
+        ListOrderedLatches<Integer> latches = new ListOrderedLatches<>(new ArrayList<>(in.indexes()));
+
 
         if (commands.hasOption('t'))
         {
@@ -61,7 +63,7 @@ public class ReadClassifier
 
         for (Integer index: in.indexes())
         {
-            ex.submit(new ProcessIndex(in, index, idt, out));
+            ex.submit(new ProcessIndex(in, index, idt, out, latches));
         }
 
         ex.shutdown();
@@ -76,12 +78,14 @@ public class ReadClassifier
     {
         private ProcessIndex(IndexedInputFile2<Integer> in, int index,
                              DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt,
-                             ListOrderedIndexedOutput<Integer> out)
+                             IndexedOutputFileSet2<Integer> out,
+                             ListOrderedLatches<Integer> latches)
         {
             this.in = in;
             this.index = index;
             this.idt = idt;
             this.out = out;
+            this.latches = latches;
         }
 
         public Void call()
@@ -154,7 +158,10 @@ public class ReadClassifier
 
             try
             {
-                out.write(bb.array(), index);
+                latches.hold(index);
+                out.setCurrentKey(index);
+                out.write(bb.array());
+                latches.done();
             }
             catch (InterruptedException e)
             {
@@ -215,7 +222,8 @@ public class ReadClassifier
         private IndexedInputFile2<Integer> in;
         private int index;
         private DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt;
-        private ListOrderedIndexedOutput<Integer> out;
+        private IndexedOutputFileSet2<Integer> out;
+        private ListOrderedLatches<Integer> latches;
     }
 
     private static final SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss\t");

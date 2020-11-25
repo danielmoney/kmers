@@ -7,12 +7,7 @@ import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
 import DataTypes.StringDataType;
 import Exceptions.InvalidBaseException;
-import IndexedFiles.IndexedOutputFile;
-import IndexedFiles.StandardIndexedOutputFile;
-import IndexedFiles.ZippedIndexedOutputFile;
-import IndexedFiles.IndexedOutputFileCache;
-import IndexedFiles.ComparableIndexedOutputFileCache;
-import IndexedFiles2.IndexedInputFile2;
+import IndexedFiles2.*;
 import Kmers.*;
 import Zip.ZipOrNot;
 import org.apache.commons.cli.*;
@@ -111,14 +106,14 @@ public class SeqToTaxID
         IndexedInputFile2<String> in2Map = new IndexedInputFile2<>(tmpMapFile, new StringCompressor());
 
 
-        IndexedOutputFile<String> out;
+        IndexedOutputFile2<String> out;
         if (z == -1)
         {
-            out = new StandardIndexedOutputFile<>(outFile, new StringCompressor(), hr);
+            out = new IndexedOutputFile2<>(outFile, new StringCompressor(), hr);
         }
         else
         {
-            out = new ZippedIndexedOutputFile<>(outFile, new StringCompressor(), hr, z);
+            out = new IndexedOutputFile2<>(outFile, new StringCompressor(), hr, z);
         }
 
         LimitedQueueExecutor<Void> exec = new LimitedQueueExecutor<>();
@@ -141,7 +136,7 @@ public class SeqToTaxID
     private static class CreateMapped implements Callable<Void>
     {
         public CreateMapped(IndexedInputFile2<String> in2Data, IndexedInputFile2<String> in2Map,
-                IndexedOutputFile<String> out, String index, boolean hr)
+                IndexedOutputFile2<String> out, String index, boolean hr)
         {
             this.in2Data = in2Data;
             this.in2Map = in2Map;
@@ -200,7 +195,11 @@ public class SeqToTaxID
                 {
                     bb.put(b);
                 }
-                out.write(bb.array(),index);
+                synchronized (out)
+                {
+                    OutputStream os = out.getOutputStream(index);
+                    os.write(bb.array());
+                }
             }
             catch (IOException ex)
             {
@@ -213,7 +212,7 @@ public class SeqToTaxID
         private boolean hr;
         private IndexedInputFile2<String> in2Data;
         private IndexedInputFile2<String> in2Map;
-        private IndexedOutputFile<String> out;
+        private IndexedOutputFile2<String> out;
         private String index;
     }
 
@@ -233,8 +232,8 @@ public class SeqToTaxID
 
         public Void call() throws Exception
         {
-            IndexedOutputFileCache<String> tmpMap = new ComparableIndexedOutputFileCache<>(cacheSize,
-                    new ZippedIndexedOutputFile<>(tmpMapFile, new StringCompressor(), true, 9));
+            IndexedOutputFileSet2<String> o = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f, new StringCompressor(), true, 9), tmpMapFile);
+            IndexedOutputFileCache2<String> tmpMap = new ComparableIndexedOutputFileCache2<>(cacheSize, o);
 
             for (File mapFile : mapFiles)
             {
@@ -288,8 +287,8 @@ public class SeqToTaxID
         {
             Stream<DataPair<String, Sequence>> sequences = StreamSupport.stream(new FASequenceSpliterator(dataFile), false);
 
-            IndexedOutputFileCache<String> cache = new ComparableIndexedOutputFileCache<>(cacheSize,
-                    new ZippedIndexedOutputFile<>(tmpDataFile, new StringCompressor(), false, 5));
+            IndexedOutputFileSet2<String> o = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f, new StringCompressor(), true, 9), tmpDataFile);
+            IndexedOutputFileCache2<String> cache = new ComparableIndexedOutputFileCache2<>(cacheSize, o);
 
             sequences.forEach(s -> writeSeq(cache, s, keylength));
 
@@ -304,7 +303,7 @@ public class SeqToTaxID
         private int cacheSize;
     }
 
-    private static void writeSeq(IndexedOutputFileCache<String> cache, DataPair<String,Sequence> data, int keylength)
+    private static void writeSeq(IndexedOutputFileCache2<String> cache, DataPair<String,Sequence> data, int keylength)
     {
         String index = data.getA().substring(data.getA().length()-keylength);
         try
