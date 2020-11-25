@@ -3,7 +3,6 @@ package KmerFiles;
 import Compression.Compressor;
 import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
-import Concurrent.OrderedIndexedOutput;
 import Concurrent.OrderedLatches;
 import Concurrent.OutputProgress;
 import Counts.CountDataType;
@@ -368,7 +367,7 @@ public class FileCreator<I,O> implements AutoCloseable
 
             try
             {
-                latches.wait(index);
+                latches.hold(index);
                 out.setCurrentKey(index);
                 for (byte[] d: data)
                 {
