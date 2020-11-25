@@ -159,7 +159,7 @@ public class TaxaCounts
                 }
 
                 Set<Integer> keySet;
-                keySet = new TreeSet(totals.match.keySet());
+                keySet = new TreeSet<>(totals.match.keySet());
                 if (t != null)
                 {
                     // Hmmmm, not sure child is right for this!!
@@ -595,7 +595,7 @@ public class TaxaCounts
 
         private Set<Integer> sampletaxa(Set<Integer> taxa)
         {
-            TreeSet sample = new TreeSet<>();
+            TreeSet<Integer> sample = new TreeSet<>();
             for (Integer t: taxa)
             {
                 if (taxprob(t) < r.nextDouble())

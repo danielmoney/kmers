@@ -3,7 +3,7 @@ package Utils;
 import Compression.Compressor;
 import Compression.IntCompressor;
 import Compression.StringCompressor;
-import IndexedFiles2.IndexedInputFile2;
+import IndexedFiles.IndexedInputFile;
 import Zip.ZipOrNot;
 import org.apache.commons.cli.*;
 
@@ -40,9 +40,7 @@ public class RetrieveIndexes
 
     private static <D extends Comparable<D>> void findAndPrint(File f, Compressor<D> compressor, D ignore) throws IOException
     {
-        IndexedInputFile2<D> iif;
-        iif = new IndexedInputFile2<>(f, compressor);
-
+        IndexedInputFile<D> iif = new IndexedInputFile<>(f, compressor);
 
         TreeSet<D> indexes = new TreeSet<>(iif.indexes());
         if (ignore != null)

@@ -1,10 +1,10 @@
 import Compression.IntCompressor;
 import CountMaps.CountMap;
 
-import IndexedFiles2.BlockInputStream;
-import IndexedFiles2.IndexedInputFile2;
+import IndexedFiles.BlockInputStream;
+import IndexedFiles.IndexedInputFile;
 
-import IndexedFiles2.IndexedOutputFile2;
+import IndexedFiles.IndexedOutputFile;
 import Kmers.*;
 import Streams.StreamUtils;
 import Zip.ZipOrNot;

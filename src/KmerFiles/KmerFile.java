@@ -4,7 +4,7 @@ import Compression.Compressor;
 import Compression.IntCompressor;
 import DataTypes.MergeableDataType;
 import Exceptions.UnexpectedDataTypeException;
-import IndexedFiles2.IndexedInputFile2;
+import IndexedFiles.IndexedInputFile;
 import Kmers.Kmer;
 import Kmers.KmerUtils;
 import Kmers.KmerWithData;
@@ -24,7 +24,7 @@ public class KmerFile<D>
 {
     public KmerFile(File file, MergeableDataType<D> dataType) throws IOException
     {
-        this.file =  new IndexedInputFile2<>(file, new IntCompressor());
+        this.file =  new IndexedInputFile<>(file, new IntCompressor());
         this.dataType = dataType;
         this.meta = getMetaData(file);
         if (!Arrays.equals(meta.dataID,dataType.getID()))
@@ -107,7 +107,7 @@ public class KmerFile<D>
         return dataType;
     }
 
-    protected IndexedInputFile2<Integer> file;
+    protected IndexedInputFile<Integer> file;
     private MergeableDataType<D> dataType;
     private MetaData meta;
 
@@ -274,7 +274,7 @@ public class KmerFile<D>
 
     public static <D> MetaData getMetaData(File f) throws IOException
     {
-        IndexedInputFile2<Integer> file =  new IndexedInputFile2<>(f, new IntCompressor());
+        IndexedInputFile<Integer> file =  new IndexedInputFile<>(f, new IntCompressor());
         if (file.isHumanReadable())
         {
             BufferedReader in = new BufferedReader(new InputStreamReader(file.getInputStream(-1)));

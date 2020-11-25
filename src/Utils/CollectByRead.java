@@ -3,16 +3,15 @@ package Utils;
 import Compression.IntCompressor;
 import Compression.StringCompressor;
 import Concurrent.LimitedQueueExecutor;
-import Concurrent.ListOrderedIndexedOutput;
 import Concurrent.ListOrderedLatches;
 import CountMaps.CountMap;
 import CountMaps.TreeCountMap;
 import Counts.CountDataType;
 import DataTypes.*;
-import IndexedFiles2.ComparableIndexedOutputFileCache2;
-import IndexedFiles2.IndexedInputFile2;
-import IndexedFiles2.IndexedOutputFile2;
-import IndexedFiles2.IndexedOutputFileSet2;
+import IndexedFiles.ComparableIndexedOutputFileCache;
+import IndexedFiles.IndexedInputFile;
+import IndexedFiles.IndexedOutputFile;
+import IndexedFiles.IndexedOutputFileSet;
 import Kmers.KmerDiff;
 import Kmers.KmerWithData;
 import Reads.ReadPos;
@@ -50,8 +49,8 @@ public class CollectByRead
         ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File(commands.getOptionValue('i')), rdt);
 
         File tmpFile = new File(commands.getOptionValue('i') + ".tmp");
-        IndexedOutputFileSet2<Integer> o = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f,new IntCompressor(), true, 5), tmpFile);
-        ComparableIndexedOutputFileCache2<Integer> cache = new ComparableIndexedOutputFileCache2<>(1000, o);
+        IndexedOutputFileSet<Integer> o = new IndexedOutputFileSet<>(f -> new IndexedOutputFile<>(f,new IntCompressor(), true, 5), tmpFile);
+        ComparableIndexedOutputFileCache<Integer> cache = new ComparableIndexedOutputFileCache<>(1000, o);
 
 
         DataPairDataType<ReadPos,Map<Integer,TreeCountMap<Integer>>> odt = new DataPairDataType<>(new ReadPosDataType(),
@@ -60,9 +59,9 @@ public class CollectByRead
         in.stream().forEach(kwd -> processKmer(kwd, cache, odt));
         cache.close();
 
-        IndexedInputFile2<Integer> in2 = new IndexedInputFile2<>(tmpFile, new IntCompressor());
+        IndexedInputFile<Integer> in2 = new IndexedInputFile<>(tmpFile, new IntCompressor());
 
-        IndexedOutputFileSet2<Integer> out = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f,new IntCompressor(),true,5),
+        IndexedOutputFileSet<Integer> out = new IndexedOutputFileSet<>(f -> new IndexedOutputFile<>(f,new IntCompressor(),true,5),
                 new File(commands.getOptionValue('o')));
         ListOrderedLatches<Integer> latches = new ListOrderedLatches<>(new ArrayList<>(in2.indexes()));
 
@@ -88,10 +87,10 @@ public class CollectByRead
 
     private static class ProcessIndex implements Callable<Void>
     {
-        private ProcessIndex(IndexedInputFile2<Integer> in, int index,
+        private ProcessIndex(IndexedInputFile<Integer> in, int index,
                              DataPairDataType<ReadPos,Map<Integer,TreeCountMap<Integer>>> odt,
                              //ListOrderedIndexedOutput<Integer> out)
-                             IndexedOutputFileSet2<Integer> out,
+                             IndexedOutputFileSet<Integer> out,
                              ListOrderedLatches<Integer> latches)
         {
             this.in = in;
@@ -147,15 +146,15 @@ public class CollectByRead
             return null;
         }
 
-        private IndexedInputFile2<Integer> in;
+        private IndexedInputFile<Integer> in;
         private int index;
         private DataPairDataType<ReadPos,Map<Integer,TreeCountMap<Integer>>> odt;
-        private IndexedOutputFileSet2<Integer> out;
+        private IndexedOutputFileSet<Integer> out;
         private ListOrderedLatches<Integer> latches;
     }
 
     private static void processKmer(KmerWithData<DataPair<Set<ReadPos>, Set<DataPair<KmerDiff, TreeCountMap<Integer>>>>> kwd,
-                                    ComparableIndexedOutputFileCache2<Integer> cache,
+                                    ComparableIndexedOutputFileCache<Integer> cache,
                                     DataPairDataType<ReadPos,Map<Integer,TreeCountMap<Integer>>> odt)
     {
         try

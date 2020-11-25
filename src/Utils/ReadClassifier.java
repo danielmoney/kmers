@@ -9,9 +9,9 @@ import DataTypes.DataPair;
 import DataTypes.DataPairDataType;
 import DataTypes.IntDataType;
 import DataTypes.MapDataType;
-import IndexedFiles2.IndexedInputFile2;
-import IndexedFiles2.IndexedOutputFile2;
-import IndexedFiles2.IndexedOutputFileSet2;
+import IndexedFiles.IndexedInputFile;
+import IndexedFiles.IndexedOutputFile;
+import IndexedFiles.IndexedOutputFileSet;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
 import org.apache.commons.cli.*;
@@ -47,9 +47,9 @@ public class ReadClassifier
         DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt = new DataPairDataType<>(new ReadPosDataType(),
                 new MapDataType<>(new IntDataType(), new CountDataType("x","|")), "\t");
 
-        IndexedInputFile2<Integer> in = new IndexedInputFile2<>(new File(commands.getOptionValue('i')), new IntCompressor());
+        IndexedInputFile<Integer> in = new IndexedInputFile<>(new File(commands.getOptionValue('i')), new IntCompressor());
 
-        IndexedOutputFileSet2<Integer> out = new IndexedOutputFileSet2<>(f -> new IndexedOutputFile2<>(f,new IntCompressor(),true,5),
+        IndexedOutputFileSet<Integer> out = new IndexedOutputFileSet<>(f -> new IndexedOutputFile<>(f,new IntCompressor(),true,5),
                 new File(commands.getOptionValue('o')));
         ListOrderedLatches<Integer> latches = new ListOrderedLatches<>(new ArrayList<>(in.indexes()));
 
@@ -76,9 +76,9 @@ public class ReadClassifier
 
     private static class ProcessIndex implements Callable<Void>
     {
-        private ProcessIndex(IndexedInputFile2<Integer> in, int index,
+        private ProcessIndex(IndexedInputFile<Integer> in, int index,
                              DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt,
-                             IndexedOutputFileSet2<Integer> out,
+                             IndexedOutputFileSet<Integer> out,
                              ListOrderedLatches<Integer> latches)
         {
             this.in = in;
@@ -219,10 +219,10 @@ public class ReadClassifier
             }
         }
 
-        private IndexedInputFile2<Integer> in;
+        private IndexedInputFile<Integer> in;
         private int index;
         private DataPairDataType<ReadPos, Map<Integer, TreeCountMap<Integer>>> idt;
-        private IndexedOutputFileSet2<Integer> out;
+        private IndexedOutputFileSet<Integer> out;
         private ListOrderedLatches<Integer> latches;
     }
 
