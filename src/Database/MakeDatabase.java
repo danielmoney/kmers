@@ -4,6 +4,8 @@ import Compression.IntCompressor;
 import Compression.StringCompressor;
 import Concurrent.LimitedQueueExecutor;
 import Concurrent.OutputProgress;
+import Concurrent.Progress;
+import Concurrent.SilentProgress;
 import CountMaps.TreeCountMap;
 import DataTypes.DataCollector;
 import DataTypes.DataPair;
@@ -77,6 +79,8 @@ public class MakeDatabase
         options.addOption(Option.builder("R").hasArg().desc("Filter kmers with runs of the same base longer than the given value").build());
 
         options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
+
+        options.addOption(Option.builder("v").desc("Verbose").build());
 
         options.addOption(Option.builder("S").hasArg().desc("Maximum file size").build());
 
@@ -175,7 +179,15 @@ public class MakeDatabase
 
                 LimitedQueueExecutor<Void> ex = new LimitedQueueExecutor<>();
 
-                OutputProgress progress = new OutputProgress("%3d/" + in.indexes().size() + " input indexes completed.");
+                Progress progress;
+                if (commands.hasOption('v'))
+                {
+                    progress = new OutputProgress("%3d/" + in.indexes().size() + " input indexes completed.");
+                }
+                else
+                {
+                    progress = new SilentProgress();
+                }
 
                 if (commands.hasOption('L'))
                 {
@@ -218,7 +230,7 @@ public class MakeDatabase
     private static class ProcessIndex implements Callable<Void>
     {
         public ProcessIndex(FileCreator<Integer, TreeCountMap<Integer>> dbc, IndexedInputFile<String> in,
-                            int j, int k, CommandLine commands, String index, OutputProgress progress)
+                            int j, int k, CommandLine commands, String index, Progress progress)
         {
             this.dbc = dbc;
             this.in = in;
@@ -246,7 +258,7 @@ public class MakeDatabase
         private int k;
         private CommandLine commands;
         private String index;
-        private OutputProgress progress;
+        private Progress progress;
     }
 
     private static <D> void filterAndAdd(KmerStream<D> kstream, FileCreator<D,?> dbc, CommandLine commands) throws InconsistentDataException
@@ -285,7 +297,7 @@ public class MakeDatabase
             throw ex;
         }
 
-        dbc.create(out, commands.hasOption('h'));
+        dbc.create(out, commands.hasOption('h'), commands.hasOption('v'));
 
         dbc.close();
     }

@@ -4,7 +4,9 @@ import Compression.Compressor;
 import Compression.IntCompressor;
 import Concurrent.LimitedQueueExecutor;
 import Concurrent.OrderedLatches;
+import Concurrent.Progress;
 import Concurrent.OutputProgress;
+import Concurrent.SilentProgress;
 import Counts.CountDataType;
 import DataTypes.DataCollector;
 import DataTypes.DataType;
@@ -109,6 +111,11 @@ public class FileCreator<I,O> implements AutoCloseable
 
     public void create(IndexedOutputFileSet<Integer> out, boolean hr) throws Exception
     {
+        create(out,hr,false);
+    }
+
+    public void create(IndexedOutputFileSet<Integer> out, boolean hr, boolean verbose) throws Exception
+    {
         List<IndexedInputFile<Integer>> fileList = new ArrayList<>();
         if (!useExistingTemp)
         {
@@ -172,7 +179,15 @@ public class FileCreator<I,O> implements AutoCloseable
         }
         out.writeAll(meta,-1);
 
-        OutputProgress progress = new OutputProgress("%4d/" + maxkey + " output indexes completed.");
+        Progress progress;
+        if (verbose)
+        {
+            progress = new OutputProgress("%4d/" + maxkey + " output indexes completed.");
+        }
+        else
+        {
+            progress = new SilentProgress();
+        }
 
         for (int i = 0; i < maxkey; i++)
         {
@@ -239,7 +254,7 @@ public class FileCreator<I,O> implements AutoCloseable
     private static class MakeAndWriteKey<I,O,A> implements Callable<Void>
     {
         private MakeAndWriteKey(IndexedInputFileSet<Integer> in, int index, IndexedOutputFileSet<Integer> out, OrderedLatches latches, int maxKmerLength,
-                                DataType<I> inputCompressor, DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr, OutputProgress progress)
+                                DataType<I> inputCompressor, DataType<O> outputCompressor, Collector<I, A, O> collector, boolean hr, Progress progress)
         {
             this.in = in;
             this.index = index;
@@ -401,7 +416,7 @@ public class FileCreator<I,O> implements AutoCloseable
         private DataType<I> inputCompressor;
         private DataType<O> outputCompressor;
         private boolean hr;
-        private OutputProgress progress;
+        private Progress progress;
     }
 
     private boolean rc;

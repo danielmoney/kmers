@@ -68,6 +68,7 @@ public class Matcher
             }
             else
             {
+                boolean found = false;
                 int i = 1;
                 f = new File(s + "." + i);
                 while (f.exists())
@@ -75,6 +76,11 @@ public class Matcher
                     dbfiles.add(new KmerFile<>(f, new CountDataType()));
                     i ++;
                     f = new File(s + "." + i);
+                    found = true;
+                }
+                if (!found)
+                {
+                    throw new FileNotFoundException(s);
                 }
             }
         }

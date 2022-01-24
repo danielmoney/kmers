@@ -10,7 +10,7 @@ import Reads.ReadPos;
 import Reads.ReadPosDataType;
 import Taxonomy.Tree;
 import Taxonomy.Taxa;
-import Zip.ZipHeader;
+//import Zip.ZipHeader;
 import org.apache.commons.cli.*;
 
 import java.io.*;
