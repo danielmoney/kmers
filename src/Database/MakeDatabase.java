@@ -40,8 +40,6 @@ public class MakeDatabase
 {
     public static void main(String[] args) throws Exception
     {
-        System.out.println(sdf.format(new Date()));
-
         Options options = new Options();
 
         options.addOption(Option.builder("i").hasArg().required().desc("Input file").build());
@@ -71,7 +69,7 @@ public class MakeDatabase
 
         options.addOption(Option.builder("r").hasArg().desc("Write read map to file").build());
 
-        options.addOption(Option.builder("m").hasArg().desc("Seq id to taxa id map (for use with -a").build());
+        options.addOption(Option.builder("m").hasArg().desc("Seq id to taxa id map (for use with -a)").build());
 
         options.addOption(Option.builder("h").desc("Human readable output").build());
 
@@ -88,8 +86,21 @@ public class MakeDatabase
 
         CommandLineParser parser = new DefaultParser();
 
-        //Obviously neeed to do something better here than just throw the ParseException!
-        CommandLine commands = parser.parse(options, args);
+        //This is a bit hacky but is better than nothing
+        CommandLine commands = null;
+        try
+        {
+            commands = parser.parse(options, args);
+        }
+        catch (MissingOptionException | MissingArgumentException | UnrecognizedOptionException ex)
+        {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("java -cp Kmers.jar Database.MakeDatabase -i INPUT -o OUTPUT <options>", options);
+            System.exit(1);
+        }
+
+        System.out.println(sdf.format(new Date()));
+
         int k = Integer.parseInt(commands.getOptionValue('K',"32"));
         int j = Integer.parseInt(commands.getOptionValue('k',"24"));
         int l = Integer.parseInt(commands.getOptionValue('l',"6"));

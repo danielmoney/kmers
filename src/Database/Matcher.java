@@ -53,8 +53,19 @@ public class Matcher
 
         CommandLineParser parser = new DefaultParser();
 
-        //Obviously neeed to do something better here than just throw the ParseException!
-        CommandLine commands = parser.parse(options, args);
+        //This is a bit hacky but is better than nothing
+        CommandLine commands = null;
+        try
+        {
+            commands = parser.parse(options, args);
+        }
+        catch (MissingOptionException | MissingArgumentException | UnrecognizedOptionException ex)
+        {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("java -cp Kmers.jar Kmers.Matcher -i INPUT -d DATABASE -o OUTPUT <options>", options);
+            System.exit(1);
+        }
+
 
         int z = Integer.parseInt(commands.getOptionValue('z', "5"));
 

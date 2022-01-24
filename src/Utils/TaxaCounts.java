@@ -45,8 +45,19 @@ public class TaxaCounts
 
         CommandLineParser parser = new DefaultParser();
 
-        //Obviously neeed to do something better here than just throw the ParseException!
-        CommandLine commands = parser.parse(options, args);
+        //This is a bit hacky but is better than nothing
+        CommandLine commands = null;
+        try
+        {
+            commands = parser.parse(options, args);
+        }
+        catch (MissingOptionException | MissingArgumentException | UnrecognizedOptionException ex)
+        {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("java -cp Kmers.jar Utils.TaxaCounts -d DATABASE <options>", options);
+            System.exit(1);
+        }
+
 
 
         List<KmerFile<TreeCountMap<Integer>>> dbfiles = new LinkedList<>();

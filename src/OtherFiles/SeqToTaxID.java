@@ -50,8 +50,18 @@ public class SeqToTaxID
 
         CommandLineParser parser = new DefaultParser();
 
-        //Obviously neeed to do something better here than just throw the ParseException!
-        CommandLine commands = parser.parse(options, args);
+        //This is a bit hacky but is better than nothing
+        CommandLine commands = null;
+        try
+        {
+            commands = parser.parse(options, args);
+        }
+        catch (MissingOptionException | MissingArgumentException | UnrecognizedOptionException ex)
+        {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("java -cp Kmers.jar OtherFiles.SeqToTaxID -i INPUT -m MAP -o OUTPUT <options>", options);
+            System.exit(1);
+        }
 
         if (commands.hasOption("t"))
         {
