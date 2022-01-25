@@ -7,7 +7,7 @@ a database created from read data and a database created from a reference set.
 ## Programs
 
 To run these programs use:
-`java -jar Kmers.jar <program name> <options>`
+`java -cp Kmers.jar <program name> <options>`
 
 Running them with no options will give you a list of available options.
 
@@ -25,7 +25,7 @@ Takes in a fasta file (with sequence ids) and a file with mappings from sequence
 id to taxa ids and outputs a fasta file with the sequence id replaced by
 the appropriate taxa id.
 
-### Utils.TaxaCoutns
+### Utils.TaxaCounts
 
 Takes in a reference database and returns kmer counts per taxa
 
