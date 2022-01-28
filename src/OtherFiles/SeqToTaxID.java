@@ -41,7 +41,7 @@ public class SeqToTaxID
 
         options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
 
-        options.addOption(Option.builder("t").hasArg().desc("Accession ID column (this should include version where applicable").build());
+        options.addOption(Option.builder("A").hasArg().desc("Accession ID column (this should include version where applicable").build());
         options.addOption(Option.builder("T").hasArg().desc("Taxonomy ID column").build());
         options.addOption(Option.builder("I").hasArg().desc("Number of header lines to ignore").build());
 
