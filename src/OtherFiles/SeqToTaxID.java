@@ -39,6 +39,8 @@ public class SeqToTaxID
         zipoptions.addOption(Option.builder("Z").hasArg().desc("Unzipped output").build());
         options.addOptionGroup(zipoptions);
 
+        options.addOption(Option.builder("h").desc("Human readable output").build());
+
         options.addOption(Option.builder("t").hasArg().desc("Number of threads to use").build());
 
         options.addOption(Option.builder("A").hasArg().desc("Accession ID column (this should include version where applicable").build());
