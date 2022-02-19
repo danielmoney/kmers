@@ -90,8 +90,6 @@ public class TaxaCounts
         ExecutorService ex = Executors.newFixedThreadPool(4);
         int maxKey = db.getMaxKey();
 
-        maxKey = 4;
-
         PrintWriter out = new PrintWriter(new OutputStreamWriter(new BufferedOutputStream(
                     new FileOutputStream(new File(commands.getOptionValue('o'))))));
 
