@@ -36,7 +36,7 @@ public class SeqToTaxID
 
         OptionGroup zipoptions = new OptionGroup();
         zipoptions.addOption(Option.builder("z").hasArg().desc("Zip compression level").build());
-        zipoptions.addOption(Option.builder("Z").hasArg().desc("Unzipped output").build());
+        zipoptions.addOption(Option.builder("Z").desc("Unzipped output").build());
         options.addOptionGroup(zipoptions);
 
         options.addOption(Option.builder("h").desc("Human readable output").build());
@@ -82,7 +82,7 @@ public class SeqToTaxID
 
         int taxpos = Integer.parseInt(commands.getOptionValue('T',"3")) - 1;
         int idpos = Integer.parseInt(commands.getOptionValue('A',"2")) - 1;
-        int headerLines = Integer.parseInt(commands.getOptionValue('I', "1"));
+        int headerLines = Integer.parseInt(commands.getOptionValue('I', "0"));
 
         int keylength = Integer.parseInt(commands.getOptionValue('l',"2"));
         int cachesize = Integer.parseInt(commands.getOptionValue('c',"10000"));

@@ -47,7 +47,7 @@ public class MakeDatabase
 
         OptionGroup zipoptions = new OptionGroup();
         zipoptions.addOption(Option.builder("z").hasArg().desc("Zip compression level").build());
-        zipoptions.addOption(Option.builder("Z").hasArg().desc("Unzipped output").build());
+        zipoptions.addOption(Option.builder("Z").desc("Unzipped output").build());
         options.addOptionGroup(zipoptions);
 
         options.addOption(Option.builder("K").hasArg().desc("Max kmer length").build());
