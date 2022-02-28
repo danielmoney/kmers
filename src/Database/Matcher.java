@@ -9,10 +9,7 @@ import DataTypes.ResultsDataType;
 import DataTypes.SetDataType;
 import Exceptions.InconsistentDataException;
 import KmerFiles.KmerFile;
-import Kmers.KmerDiff;
-import Kmers.KmerDiffDataType;
-import Kmers.KmerStream;
-import Kmers.KmerWithDataDataType;
+import Kmers.*;
 import Reads.ReadPos;
 import Reads.ReadPosDataType;
 import Streams.StreamUtils;
@@ -21,6 +18,7 @@ import org.apache.commons.cli.*;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
@@ -95,7 +93,14 @@ public class Matcher
                 }
             }
         }
-        DB<TreeCountMap<Integer>> db = new DB<>(dbfiles);
+
+        BinaryOperator<KmerWithData<TreeCountMap<Integer>>> merger = (kwd1, kwd2) ->
+        {
+            kwd1.getData().addAll(kwd2.getData());
+            return kwd1;
+        };
+
+        DB<TreeCountMap<Integer>> db = new DB<>(dbfiles, merger);
 
         if (commands.hasOption("t"))
         {

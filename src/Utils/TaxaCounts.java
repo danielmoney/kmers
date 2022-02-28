@@ -7,6 +7,7 @@ import Database.DB;
 import Exceptions.InconsistentDataException;
 import Exceptions.UnknownTaxaException;
 import KmerFiles.KmerFile;
+import Kmers.KmerWithData;
 import SumMaps.TreeSumMap;
 import Taxonomy.Taxa;
 import Taxonomy.Tree;
@@ -17,6 +18,7 @@ import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 public class TaxaCounts
@@ -80,7 +82,14 @@ public class TaxaCounts
                 }
             }
         }
-        DB<TreeCountMap<Integer>> db = new DB<>(dbfiles);
+
+        BinaryOperator<KmerWithData<TreeCountMap<Integer>>> merger = (kwd1, kwd2) ->
+            {
+                kwd1.getData().addAll(kwd2.getData());
+                return kwd1;
+            };
+
+        DB<TreeCountMap<Integer>> db = new DB<>(dbfiles, merger);
 
         if (commands.hasOption("t"))
         {

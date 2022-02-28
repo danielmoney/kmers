@@ -13,6 +13,8 @@ import Streams.StreamUtils;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BiPredicate;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -20,12 +22,12 @@ import java.util.stream.StreamSupport;
 
 public class DB<D>
 {
-    public DB(KmerFile<D> file) throws InconsistentDataException
+    public DB(KmerFile<D> file, BinaryOperator<KmerWithData<D>> merger) throws InconsistentDataException
     {
-        this(Collections.singletonList(file));
+        this(Collections.singletonList(file), merger);
     }
 
-    public DB(List<KmerFile<D>> files) throws InconsistentDataException
+    public DB(List<KmerFile<D>> files,  BinaryOperator<KmerWithData<D>> merger) throws InconsistentDataException
     {
         // Stop this being modified after creation by creating a new copy as we do some checks on the files at construction
         this.files = new LinkedList<>(files);
@@ -66,6 +68,9 @@ public class DB<D>
         {
             maxKey *=4;
         }
+
+        this.merger = merger;
+
     }
 
     public <S> KmerStream<DataPair<S, Set<DataPair<KmerDiff,D>>>> getNearestKmers(KmerStream<S> searchKmers, int maxDiff, boolean just) throws InconsistentDataException
@@ -93,10 +98,11 @@ public class DB<D>
 
     public KmerStream<D> kmers(int key)
     {
+        List<Stream<KmerWithData<D>>> streams = files.stream().map(f -> f.kmers(key).stream()).collect(Collectors.toList());
+        Stream<KmerWithData<D>> rawStream = StreamUtils.groupAndReduceStream(StreamUtils.mergeSortedStreams(streams, compare), equal, merger);
         // Don't need to check that db streams have same min/max length as we should check that at db creation
         return new KmerStream<>(
-                StreamUtils.mergeSortedStreams(files.stream().map(f -> f.kmers(key).stream()).collect(Collectors.toList()),
-                (kwd1,kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())),
+                rawStream,
                 minLength,
                 maxLength,
                 true);
@@ -104,10 +110,12 @@ public class DB<D>
 
     public KmerStream<D> allKmers()
     {
+        List<Stream<KmerWithData<D>>> streams = files.stream().map(f -> f.allKmers().stream()).collect(Collectors.toList());
+        Stream<KmerWithData<D>> rawStream = StreamUtils.groupAndReduceStream(StreamUtils.mergeSortedStreams(streams, compare), equal, merger);
         // Don't need to check that db streams have same min/max length as we should check that at db creation
         return new KmerStream<>(
-                StreamUtils.mergeSortedStreams(files.stream().map(f -> f.allKmers().stream()).collect(Collectors.toList()),
-                        (kwd1,kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer())),
+                StreamUtils.mergeSortedStreams(streams,
+                        compare),
                 minLength,
                 maxLength,
                 true);
@@ -296,6 +304,10 @@ public class DB<D>
     private int maxLength;
     private List<KmerFile<D>> files;
     private int maxKey;
+
+    private Comparator<KmerWithData<D>> compare = (kwd1,kwd2) -> kwd1.getKmer().compareTo(kwd2.getKmer());
+    private BiPredicate<KmerWithData<D>,KmerWithData<D>> equal = (kwd1, kwd2) -> kwd1.getKmer().equals(kwd2.getKmer());
+    private BinaryOperator<KmerWithData<D>> merger;
 
     public void setThreads(int threads)
     {
