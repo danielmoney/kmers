@@ -84,6 +84,8 @@ public class MakeDatabase
 
         options.addOption(Option.builder("U").desc("Use existing temporary files").build());
 
+        options.addOption(Option.builder("f").hasArg().desc("Temporary files location").build());
+
         CommandLineParser parser = new DefaultParser();
 
         //This is a bit hacky but is better than nothing
@@ -119,11 +121,13 @@ public class MakeDatabase
             LimitedQueueExecutor.setDefaultNumberThreads(Integer.parseInt(commands.getOptionValue('t')));
         }
 
+        String tempLoc = commands.getOptionValue('f', "");
+
 
         if (commands.hasOption('a') || commands.hasOption('O'))
         {
             // True is to include reverse complement - should have as a optional param as well?
-            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c,
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(tempLoc + "temp.tmp"),l,k,c,
                     DataCollector.getCountInstance(), true, maxSize, useExistingTemp);
 
             if (!useExistingTemp)
@@ -160,7 +164,7 @@ public class MakeDatabase
         }
         if (commands.hasOption('q'))
         {
-            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c,
+            FileCreator<ReadPos, Set<ReadPos>> dbc = new FileCreator<>(new File(tempLoc + "temp.tmp"),l,k,c,
                     DataCollector.getReadPosInstance(), false, maxSize, useExistingTemp);
 
             if (!useExistingTemp)
@@ -181,7 +185,7 @@ public class MakeDatabase
         }
         if (commands.hasOption('p'))
         {
-            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(commands.getOptionValue('o') + ".tmp"),l,k,c,
+            FileCreator<Integer, TreeCountMap<Integer>> dbc = new FileCreator<>(new File(tempLoc + "remp.tmp"),l,k,c,
                     DataCollector.getCountInstance(), true, maxSize, useExistingTemp);
 
             if (!useExistingTemp)

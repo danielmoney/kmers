@@ -50,6 +50,8 @@ public class SeqToTaxID
         options.addOption(Option.builder("l").hasArg().desc("Key length").build());
         options.addOption(Option.builder("c").hasArg().desc("Cache size").build());
 
+        options.addOption(Option.builder("f").hasArg().desc("Temporary files location").build());
+
         CommandLineParser parser = new DefaultParser();
 
         //This is a bit hacky but is better than nothing
@@ -71,13 +73,14 @@ public class SeqToTaxID
         }
 
         File dataFile = new File(commands.getOptionValue('i'));
-        File tmpDataFile = new File(commands.getOptionValue('i') + ".tmp");
+        String tempLoc = commands.getOptionValue('f', "");
+        File tmpDataFile = new File(tempLoc + "data.tmp");
         List<File> mapFiles = new LinkedList<>();
         for (String s: commands.getOptionValues('m'))
         {
             mapFiles.add(new File(s));
         }
-        File tmpMapFile = new File("map.tmp");
+        File tmpMapFile = new File(tempLoc + "map.tmp");
         File outFile = new File(commands.getOptionValue('o'));
 
         int taxpos = Integer.parseInt(commands.getOptionValue('T',"3")) - 1;
@@ -106,6 +109,9 @@ public class SeqToTaxID
         ex.awaitTermination(14, TimeUnit.DAYS);
 
         createMapped(tmpDataFile,tmpMapFile,outFile,z,commands.hasOption('h'));
+
+        tmpDataFile.delete();
+        tmpMapFile.delete();
 
         System.out.println(sdf.format(new Date()));
     }

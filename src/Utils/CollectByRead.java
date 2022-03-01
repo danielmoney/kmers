@@ -40,6 +40,8 @@ public class CollectByRead
         options.addOption(Option.builder("i").required().hasArg().desc("Input file").build());
         options.addOption(Option.builder("o").required().hasArg().desc("Output file").build());
 
+        options.addOption(Option.builder("f").hasArg().desc("Temporary files location").build());
+
         CommandLineParser parser = new DefaultParser();
 
         //Obviously neeed to do something better here than just throw the ParseException!
@@ -48,7 +50,8 @@ public class CollectByRead
         ResultsDataType<Set<ReadPos>, TreeCountMap<Integer>> rdt = ResultsDataType.getReadReferenceInstance();
         ResultsFile<Set<ReadPos>, TreeCountMap<Integer>> in = new ResultsFile<>(new File(commands.getOptionValue('i')), rdt);
 
-        File tmpFile = new File(commands.getOptionValue('i') + ".tmp");
+        String tempLoc = commands.getOptionValue('f', "");
+        File tmpFile = new File(tempLoc + "temp.tmp");
         IndexedOutputFileSet<Integer> o = new IndexedOutputFileSet<>(f -> new IndexedOutputFile<>(f,new IntCompressor(), true, 5), tmpFile);
         ComparableIndexedOutputFileCache<Integer> cache = new ComparableIndexedOutputFileCache<>(1000, o);
 
